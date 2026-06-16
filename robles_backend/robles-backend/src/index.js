@@ -10,7 +10,18 @@ const app  = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(helmet());
-app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:8080', credentials: true }));
+
+const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173')
+  .split(',')
+  .map(o => o.trim())
+
+app.use(cors({
+  origin: (origin, cb) => {
+    if (!origin || allowedOrigins.some(o => origin.startsWith(o))) return cb(null, true)
+    cb(new Error(`CORS bloqueado: ${origin}`))
+  },
+  credentials: true,
+}))
 app.use(rateLimit({ windowMs: 15*60*1000, max: 300, message:{ error:'Demasiadas solicitudes.' } }));
 app.use(morgan('dev'));
 app.use(express.json({ limit: '10mb' }));
