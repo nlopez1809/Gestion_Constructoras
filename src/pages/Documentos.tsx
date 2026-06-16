@@ -1,185 +1,198 @@
-import React, { useEffect, useState, Fragment } from 'react'
-import { Dialog, Transition } from '@headlessui/react'
-import { supabase } from '../lib/supabase'
-import { Documento, Proyecto } from '../lib/types'
-import { useAuth } from '../contexts/AuthContext'
+import { useEffect, useState, type FormEvent } from 'react'
+import { Plus, Search, FileText, Download, Trash2, File } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { Upload, X, ExternalLink } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
+import { useAuthContext } from '@/store/authStore'
+import { Button } from '@/components/ui/Button'
+import { Modal } from '@/components/ui/Modal'
+import { Input, Select } from '@/components/ui/Input'
+import { Badge } from '@/components/ui/Badge'
+import { TIPO_DOC_LABELS } from '@/lib/constants'
+import type { Documento, Proyecto, TipoDocumento } from '@/types'
 
-interface DocForm {
-  nombre: string
-  tipo: string
-  proyecto_id: string
-  file: File | null
-}
+const tipoOptions = Object.entries(TIPO_DOC_LABELS).map(([value, label]) => ({ value, label }))
 
-export default function Documentos() {
-  const { profile, user } = useAuth()
-  const [documentos, setDocumentos] = useState<Documento[]>([])
+export function Documentos() {
+  const { user, canDo } = useAuthContext()
+  const [docs, setDocs]           = useState<Documento[]>([])
   const [proyectos, setProyectos] = useState<Proyecto[]>([])
-  const [loading, setLoading] = useState(true)
-  const [open, setOpen] = useState(false)
-  const [form, setForm] = useState<DocForm>({ nombre: '', tipo: '', proyecto_id: '', file: null })
-  const [saving, setSaving] = useState(false)
+  const [loading, setLoading]     = useState(true)
+  const [search, setSearch]       = useState('')
+  const [filtroTipo, setFiltroTipo] = useState<string>('todos')
+  const [modal, setModal]         = useState(false)
+  const [saving, setSaving]       = useState(false)
+  const [file, setFile]           = useState<File | null>(null)
+  const [form, setForm] = useState({ nombre: '', tipo: 'otro' as TipoDocumento, proyecto_id: '' })
 
-  const canUpload = profile?.rol === 'admin' || profile?.rol === 'gerente' || profile?.rol === 'ingeniero'
+  const canWrite = canDo('documentos_write')
 
-  async function fetchData() {
-    const [{ data: dData }, { data: pData }] = await Promise.all([
-      supabase.from('documentos').select('*').order('created_at', { ascending: false }),
-      supabase.from('proyectos').select('id, nombre'),
+  const load = async () => {
+    setLoading(true)
+    const [{ data: d }, { data: p }] = await Promise.all([
+      supabase.from('documentos').select('*, proyecto:proyectos(nombre), subido:profiles(nombres,apellidos)').order('created_at', { ascending: false }),
+      supabase.from('proyectos').select('id,nombre').order('nombre'),
     ])
-    setDocumentos((dData as Documento[]) ?? [])
-    setProyectos((pData as Proyecto[]) ?? [])
+    setDocs((d ?? []) as Documento[])
+    setProyectos((p ?? []) as Proyecto[])
     setLoading(false)
   }
 
-  useEffect(() => { fetchData() }, [])
+  useEffect(() => { load() }, [])
 
-  function getProyectoNombre(id: string | null) {
-    if (!id) return '—'
-    return proyectos.find(p => p.id === id)?.nombre ?? '—'
-  }
-
-  async function handleSave(e: React.FormEvent) {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    if (!form.file) { toast.error('Selecciona un archivo'); return }
+    if (!form.nombre) return toast.error('Nombre requerido')
+    if (!file) return toast.error('Selecciona un archivo')
     setSaving(true)
-    const ext = form.file.name.split('.').pop()
-    const path = `${Date.now()}-${form.nombre.replace(/\s+/g, '_')}.${ext}`
-    const { error: uploadError } = await supabase.storage
-      .from('robles-docs')
-      .upload(path, form.file)
-    if (uploadError) {
-      toast.error('Error al subir archivo: ' + uploadError.message)
-      setSaving(false)
-      return
-    }
-    const { data: urlData } = supabase.storage.from('robles-docs').getPublicUrl(path)
-    const payload = {
-      nombre: form.nombre,
-      tipo: form.tipo,
-      proyecto_id: form.proyecto_id || null,
-      url_archivo: urlData.publicUrl,
-      subido_por: user?.id ?? null,
-    }
-    const { error } = await supabase.from('documentos').insert(payload)
-    if (error) {
-      toast.error('Error al guardar: ' + error.message)
-    } else {
+    try {
+      const ext = file.name.split('.').pop()
+      const path = `documentos/${Date.now()}-${form.nombre.replace(/\s+/g, '_')}.${ext}`
+      const { error: upErr } = await supabase.storage.from('robles-docs').upload(path, file)
+      if (upErr) throw upErr
+      const { data: { publicUrl } } = supabase.storage.from('robles-docs').getPublicUrl(path)
+      const { error } = await supabase.from('documentos').insert({
+        nombre: form.nombre, tipo: form.tipo,
+        proyecto_id: form.proyecto_id || null,
+        url: publicUrl,
+        tamaño_kb: Math.round(file.size / 1024),
+        subido_por: user!.id,
+      })
+      if (error) throw error
       toast.success('Documento subido')
-      setOpen(false)
-      setForm({ nombre: '', tipo: '', proyecto_id: '', file: null })
-      fetchData()
+      setModal(false)
+      load()
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Error al subir')
     }
     setSaving(false)
   }
 
+  const handleDelete = async (doc: Documento) => {
+    if (!confirm('¿Eliminar este documento?')) return
+    await supabase.from('documentos').delete().eq('id', doc.id)
+    toast.success('Documento eliminado')
+    load()
+  }
+
+  const filtered = docs.filter(d => {
+    const matchSearch = d.nombre.toLowerCase().includes(search.toLowerCase())
+    const matchTipo   = filtroTipo === 'todos' || d.tipo === filtroTipo
+    return matchSearch && matchTipo
+  })
+
+  const fmtSize = (kb: number | null) => !kb ? '—' : kb < 1024 ? `${kb} KB` : `${(kb/1024).toFixed(1)} MB`
+
+  const iconColor: Record<string, string> = {
+    plano: 'text-blue-600', contrato: 'text-purple-600',
+    permiso: 'text-orange-600', reporte: 'text-verde-600', otro: 'text-gray-500',
+  }
+
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-slate-800">Documentos</h1>
-        {canUpload && (
-          <button onClick={() => setOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm font-medium transition-colors">
-            <Upload size={16} /> Subir Documento
-          </button>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Documentos y Planos</h1>
+          <p className="text-sm text-gray-500 mt-1">{docs.length} documentos almacenados</p>
+        </div>
+        {canWrite && (
+          <Button onClick={() => { setForm({ nombre:'', tipo:'otro', proyecto_id:'' }); setFile(null); setModal(true) }}>
+            <Plus size={16} />Subir Documento
+          </Button>
         )}
       </div>
 
+      <div className="flex flex-wrap gap-3">
+        <div className="relative flex-1 min-w-48">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar documentos..."
+            className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-verde-500" />
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          {['todos', ...Object.keys(TIPO_DOC_LABELS)].map(t => (
+            <button key={t} onClick={() => setFiltroTipo(t)}
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                filtroTipo === t ? 'bg-verde-700 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+              }`}>
+              {t === 'todos' ? 'Todos' : TIPO_DOC_LABELS[t as TipoDocumento]}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {loading ? (
-        <div className="flex justify-center py-12">
-          <div className="border-4 border-amber-500 border-t-transparent rounded-full w-8 h-8 animate-spin" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => <div key={i} className="bg-white rounded-xl h-36 animate-pulse border border-gray-100" />)}
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-16 text-gray-400">
+          <FileText size={48} className="mx-auto mb-3 opacity-30" />
+          <p>No hay documentos registrados</p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-100">
-              <tr>
-                {['Nombre', 'Tipo', 'Proyecto', 'Fecha Subida', 'Archivo'].map(h => (
-                  <th key={h} className="text-left px-4 py-3 text-gray-500 font-medium">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {documentos.length === 0 ? (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">No hay documentos</td></tr>
-              ) : documentos.map(d => (
-                <tr key={d.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium text-slate-800">{d.nombre}</td>
-                  <td className="px-4 py-3 text-gray-600">{d.tipo}</td>
-                  <td className="px-4 py-3 text-gray-600">{getProyectoNombre(d.proyecto_id)}</td>
-                  <td className="px-4 py-3 text-gray-600">{new Date(d.created_at).toLocaleDateString('es-MX')}</td>
-                  <td className="px-4 py-3">
-                    <a href={d.url_archivo} target="_blank" rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-amber-600 hover:text-amber-700 font-medium text-xs">
-                      <ExternalLink size={13} /> Descargar
-                    </a>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filtered.map(doc => (
+            <div key={doc.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-shadow">
+              <div className="flex items-start gap-3">
+                <div className={`flex-shrink-0 ${iconColor[doc.tipo ?? 'otro']}`}>
+                  <File size={32} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm text-gray-900 truncate">{doc.nombre}</p>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    {doc.tipo && (
+                      <Badge className="bg-gray-100 text-gray-600 text-[10px]">
+                        {TIPO_DOC_LABELS[doc.tipo]}
+                      </Badge>
+                    )}
+                    {(doc.proyecto as any)?.nombre && (
+                      <span className="text-xs text-verde-600 truncate">{(doc.proyecto as any).nombre}</span>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between mt-2">
+                    <p className="text-xs text-gray-400">
+                      {fmtSize(doc.tamaño_kb)} · {new Date(doc.created_at).toLocaleDateString('es-BO')}
+                    </p>
+                    <div className="flex gap-1">
+                      <a href={doc.url} target="_blank" rel="noopener noreferrer"
+                        className="p-1.5 rounded-md hover:bg-verde-50 text-gray-400 hover:text-verde-600 transition-colors">
+                        <Download size={14} />
+                      </a>
+                      {canWrite && (
+                        <button onClick={() => handleDelete(doc)}
+                          className="p-1.5 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors">
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
-      <Transition show={open} as={Fragment}>
-        <Dialog onClose={() => setOpen(false)} className="relative z-50">
-          <Transition.Child as={Fragment}
-            enter="ease-out duration-200" enterFrom="opacity-0" enterTo="opacity-100"
-            leave="ease-in duration-150" leaveFrom="opacity-100" leaveTo="opacity-0">
-            <div className="fixed inset-0 bg-black/40" />
-          </Transition.Child>
-          <div className="fixed inset-0 flex items-center justify-center p-4">
-            <Transition.Child as={Fragment}
-              enter="ease-out duration-200" enterFrom="opacity-0 scale-95" enterTo="opacity-100 scale-100"
-              leave="ease-in duration-150" leaveFrom="opacity-100 scale-100" leaveTo="opacity-0 scale-95">
-              <Dialog.Panel className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-                <div className="flex items-center justify-between mb-5">
-                  <Dialog.Title className="text-lg font-semibold text-slate-800">Subir Documento</Dialog.Title>
-                  <button onClick={() => setOpen(false)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
-                </div>
-                <form onSubmit={handleSave} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
-                    <input required value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-amber-500" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Tipo *</label>
-                    <input required value={form.tipo} onChange={e => setForm(f => ({ ...f, tipo: e.target.value }))}
-                      placeholder="ej. Contrato, Plano, Factura"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-amber-500" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Proyecto</label>
-                    <select value={form.proyecto_id} onChange={e => setForm(f => ({ ...f, proyecto_id: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-amber-500">
-                      <option value="">Sin proyecto</option>
-                      {proyectos.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Archivo *</label>
-                    <input required type="file"
-                      onChange={e => setForm(f => ({ ...f, file: e.target.files?.[0] ?? null }))}
-                      className="w-full text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-amber-50 file:text-amber-700 hover:file:bg-amber-100" />
-                  </div>
-                  <div className="flex gap-3 pt-2">
-                    <button type="button" onClick={() => setOpen(false)}
-                      className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50">Cancelar</button>
-                    <button type="submit" disabled={saving}
-                      className="flex-1 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm font-medium disabled:opacity-60 flex items-center justify-center gap-2">
-                      {saving && <div className="border-2 border-white border-t-transparent rounded-full w-4 h-4 animate-spin" />}
-                      Subir
-                    </button>
-                  </div>
-                </form>
-              </Dialog.Panel>
-            </Transition.Child>
+      <Modal open={modal} onClose={() => setModal(false)} title="Subir Documento">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <Input label="Nombre del Documento *" value={form.nombre}
+            onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} required />
+          <Select label="Tipo" value={form.tipo}
+            onChange={e => setForm(f => ({ ...f, tipo: e.target.value as TipoDocumento }))}
+            options={tipoOptions} />
+          <Select label="Proyecto (opcional)" value={form.proyecto_id}
+            onChange={e => setForm(f => ({ ...f, proyecto_id: e.target.value }))}
+            placeholder="Sin proyecto" options={proyectos.map(p => ({ value: p.id, label: p.nombre }))} />
+          <div className="space-y-1">
+            <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide">Archivo *</label>
+            <input type="file" onChange={e => setFile(e.target.files?.[0] ?? null)}
+              className="w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-verde-50 file:text-verde-700 hover:file:bg-verde-100" />
           </div>
-        </Dialog>
-      </Transition>
+          <div className="flex justify-end gap-3">
+            <Button variant="secondary" type="button" onClick={() => setModal(false)}>Cancelar</Button>
+            <Button type="submit" loading={saving}>Subir</Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   )
 }

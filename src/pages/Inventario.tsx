@@ -1,114 +1,176 @@
-import React, { useEffect, useState, Fragment } from 'react'
-import { Dialog, Transition } from '@headlessui/react'
-import { supabase } from '../lib/supabase'
-import { Material } from '../lib/types'
-import { useAuth } from '../contexts/AuthContext'
+import { useEffect, useState, type FormEvent } from 'react'
+import { Plus, Search, AlertCircle, ArrowUp, ArrowDown, Pencil, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { Plus, X } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
+import { useAuthContext } from '@/store/authStore'
+import { Button } from '@/components/ui/Button'
+import { Modal } from '@/components/ui/Modal'
+import { Input, Select } from '@/components/ui/Input'
+import { Badge } from '@/components/ui/Badge'
+import type { Material, Proyecto } from '@/types'
 
-interface MovForm {
-  material_id: string
-  tipo: 'entrada' | 'salida'
-  cantidad: number
-  descripcion: string
-}
+const UNIDADES = ['unidad','kg','ton','m','m²','m³','litro','bolsa','rollo','caja','juego']
 
-export default function Inventario() {
-  const { profile, user } = useAuth()
+export function Inventario() {
+  const { user, canDo } = useAuthContext()
   const [materiales, setMateriales] = useState<Material[]>([])
-  const [loading, setLoading] = useState(true)
-  const [open, setOpen] = useState(false)
-  const [form, setForm] = useState<MovForm>({ material_id: '', tipo: 'entrada', cantidad: 1, descripcion: '' })
-  const [saving, setSaving] = useState(false)
+  const [proyectos, setProyectos]   = useState<Proyecto[]>([])
+  const [loading, setLoading]       = useState(true)
+  const [search, setSearch]         = useState('')
+  const [modalMat, setModalMat]     = useState(false)
+  const [modalMov, setModalMov]     = useState(false)
+  const [editMat, setEditMat]       = useState<Material | null>(null)
+  const [selMat, setSelMat]         = useState<Material | null>(null)
+  const [saving, setSaving]         = useState(false)
 
-  const canEdit = profile?.rol === 'admin' || profile?.rol === 'gerente' || profile?.rol === 'maestro'
+  const [matForm, setMatForm] = useState({ nombre:'', unidad:'unidad', stock_actual:'', stock_minimo:'', precio_unitario:'', proveedor:'' })
+  const [movForm, setMovForm] = useState({ tipo:'entrada', cantidad:'', motivo:'', proyecto_id:'' })
 
-  async function fetchMateriales() {
-    const { data, error } = await supabase.from('materiales').select('*').order('nombre')
-    if (!error) setMateriales((data as Material[]) ?? [])
+  const canWrite = canDo('inventario_write')
+
+  const load = async () => {
+    setLoading(true)
+    const [{ data: mats }, { data: proys }] = await Promise.all([
+      supabase.from('materiales').select('*').order('nombre'),
+      supabase.from('proyectos').select('id,nombre').order('nombre'),
+    ])
+    setMateriales((mats ?? []) as Material[])
+    setProyectos((proys ?? []) as Proyecto[])
     setLoading(false)
   }
 
-  useEffect(() => { fetchMateriales() }, [])
+  useEffect(() => { load() }, [])
 
-  function openModal() {
-    setForm({ material_id: materiales[0]?.id ?? '', tipo: 'entrada', cantidad: 1, descripcion: '' })
-    setOpen(true)
+  const openNewMat = () => {
+    setEditMat(null)
+    setMatForm({ nombre:'', unidad:'unidad', stock_actual:'', stock_minimo:'', precio_unitario:'', proveedor:'' })
+    setModalMat(true)
   }
+  const openEditMat = (m: Material) => {
+    setEditMat(m)
+    setMatForm({ nombre:m.nombre, unidad:m.unidad, stock_actual:String(m.stock_actual), stock_minimo:String(m.stock_minimo), precio_unitario:String(m.precio_unitario), proveedor:m.proveedor??'' })
+    setModalMat(true)
+  }
+  const openMov = (m: Material) => { setSelMat(m); setMovForm({ tipo:'entrada', cantidad:'', motivo:'', proyecto_id:'' }); setModalMov(true) }
 
-  async function handleSave(e: React.FormEvent) {
+  const handleMat = async (e: FormEvent) => {
     e.preventDefault()
+    if (!matForm.nombre) return toast.error('Nombre requerido')
     setSaving(true)
     const payload = {
-      material_id: form.material_id,
-      tipo: form.tipo,
-      cantidad: form.cantidad,
-      descripcion: form.descripcion || null,
-      fecha: new Date().toISOString().split('T')[0],
-      registrado_por: user?.id ?? null,
-      proyecto_id: null,
+      nombre: matForm.nombre, unidad: matForm.unidad,
+      stock_actual: parseFloat(matForm.stock_actual)||0,
+      stock_minimo: parseFloat(matForm.stock_minimo)||0,
+      precio_unitario: parseFloat(matForm.precio_unitario)||0,
+      proveedor: matForm.proveedor || null,
+      updated_at: new Date().toISOString(),
     }
-    const { error } = await supabase.from('movimientos_inventario').insert(payload)
-    if (error) {
-      toast.error('Error: ' + error.message)
-    } else {
-      toast.success('Movimiento registrado')
-      setOpen(false)
-      const mat = materiales.find(m => m.id === form.material_id)
-      if (mat) {
-        const newStock = form.tipo === 'entrada'
-          ? mat.stock_actual + form.cantidad
-          : mat.stock_actual - form.cantidad
-        await supabase.from('materiales').update({ stock_actual: newStock }).eq('id', mat.id)
-      }
-      fetchMateriales()
-    }
+    const { error } = editMat
+      ? await supabase.from('materiales').update(payload).eq('id', editMat.id)
+      : await supabase.from('materiales').insert(payload)
+    if (error) toast.error('Error al guardar')
+    else { toast.success(editMat ? 'Material actualizado' : 'Material creado'); setModalMat(false); load() }
     setSaving(false)
   }
 
+  const handleMov = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!selMat || !movForm.cantidad) return toast.error('Completa los campos requeridos')
+    const cant = parseFloat(movForm.cantidad)
+    if (movForm.tipo === 'salida' && cant > selMat.stock_actual) return toast.error('Stock insuficiente')
+    setSaving(true)
+    const nuevoStock = movForm.tipo === 'entrada'
+      ? selMat.stock_actual + cant
+      : selMat.stock_actual - cant
+
+    const { error } = await supabase.from('movimientos_inventario').insert({
+      material_id: selMat.id, tipo: movForm.tipo, cantidad: cant,
+      motivo: movForm.motivo || null,
+      proyecto_id: movForm.proyecto_id || null,
+      realizado_por: user!.id,
+    })
+    if (!error) await supabase.from('materiales').update({ stock_actual: nuevoStock, updated_at: new Date().toISOString() }).eq('id', selMat.id)
+    if (error) toast.error('Error al registrar movimiento')
+    else { toast.success('Movimiento registrado'); setModalMov(false); load() }
+    setSaving(false)
+  }
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('¿Eliminar este material?')) return
+    const { error } = await supabase.from('materiales').delete().eq('id', id)
+    if (error) toast.error('Error al eliminar')
+    else { toast.success('Material eliminado'); load() }
+  }
+
+  const fmt = (n: number) => `Bs. ${n.toLocaleString('es-BO', { minimumFractionDigits: 2 })}`
+
+  const filtered = materiales.filter(m => m.nombre.toLowerCase().includes(search.toLowerCase()) || (m.proveedor ?? '').toLowerCase().includes(search.toLowerCase()))
+
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-slate-800">Inventario</h1>
-        {canEdit && (
-          <button onClick={openModal}
-            className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm font-medium transition-colors">
-            <Plus size={16} /> Registrar Movimiento
-          </button>
-        )}
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Inventario de Materiales</h1>
+          <p className="text-sm text-gray-500 mt-1">{materiales.filter(m=>m.stock_actual<=m.stock_minimo).length} materiales bajo stock mínimo</p>
+        </div>
+        {canWrite && <Button onClick={openNewMat}><Plus size={16}/>Nuevo Material</Button>}
+      </div>
+
+      <div className="relative max-w-sm">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"/>
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar materiales..."
+          className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-verde-500"/>
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-12">
-          <div className="border-4 border-amber-500 border-t-transparent rounded-full w-8 h-8 animate-spin" />
-        </div>
+        <div className="space-y-2">{Array.from({length:6}).map((_,i) => <div key={i} className="bg-white rounded-xl h-16 animate-pulse border border-gray-100"/>)}</div>
       ) : (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-100">
-              <tr>
-                {['Material', 'Unidad', 'Stock Actual', 'Stock Mínimo', 'Precio Unitario', 'Estado'].map(h => (
-                  <th key={h} className="text-left px-4 py-3 text-gray-500 font-medium">{h}</th>
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50">
+                {['Material','Unidad','Stock Actual','Stock Mínimo','Precio Unit.','Proveedor','Estado',''].map(h => (
+                  <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {materiales.length === 0 ? (
-                <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">No hay materiales</td></tr>
-              ) : materiales.map(m => {
-                const bajo = m.stock_actual < m.stock_minimo
+              {filtered.map(m => {
+                const bajo = m.stock_actual <= m.stock_minimo
                 return (
-                  <tr key={m.id} className={bajo ? 'bg-red-50' : 'hover:bg-gray-50'}>
-                    <td className="px-4 py-3 font-medium text-slate-800">{m.nombre}</td>
-                    <td className="px-4 py-3 text-gray-600">{m.unidad}</td>
-                    <td className={`px-4 py-3 font-semibold ${bajo ? 'text-red-600' : 'text-gray-800'}`}>{m.stock_actual}</td>
-                    <td className="px-4 py-3 text-gray-600">{m.stock_minimo}</td>
-                    <td className="px-4 py-3 text-gray-600">${m.precio_unitario.toLocaleString('es-MX')}</td>
+                  <tr key={m.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3">
-                      {bajo ? (
-                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">Stock Bajo</span>
-                      ) : (
-                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">OK</span>
+                      <div className="flex items-center gap-2">
+                        {bajo && <AlertCircle size={14} className="text-red-500 flex-shrink-0"/>}
+                        <span className="text-sm font-medium text-gray-900">{m.nombre}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600">{m.unidad}</td>
+                    <td className="px-4 py-3 text-sm font-semibold text-gray-900">{m.stock_actual}</td>
+                    <td className="px-4 py-3 text-sm text-gray-500">{m.stock_minimo}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600">{fmt(m.precio_unitario)}</td>
+                    <td className="px-4 py-3 text-sm text-gray-500">{m.proveedor ?? '—'}</td>
+                    <td className="px-4 py-3">
+                      <Badge className={bajo ? 'bg-red-100 text-red-700' : 'bg-verde-100 text-verde-700'}>
+                        {bajo ? 'Bajo mínimo' : 'OK'}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3">
+                      {canWrite && (
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => openMov(m)} title="Registrar movimiento"
+                            className="p-1.5 rounded-md hover:bg-verde-50 text-verde-600 hover:text-verde-700 transition-colors">
+                            <ArrowUp size={14}/>
+                          </button>
+                          <button onClick={() => openEditMat(m)}
+                            className="p-1.5 rounded-md hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
+                            <Pencil size={14}/>
+                          </button>
+                          <button onClick={() => handleDelete(m.id)}
+                            className="p-1.5 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors">
+                            <Trash2 size={14}/>
+                          </button>
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -116,67 +178,54 @@ export default function Inventario() {
               })}
             </tbody>
           </table>
+          {filtered.length === 0 && <p className="text-center text-gray-400 py-8 text-sm">Sin materiales registrados</p>}
         </div>
       )}
 
-      <Transition show={open} as={Fragment}>
-        <Dialog onClose={() => setOpen(false)} className="relative z-50">
-          <Transition.Child as={Fragment}
-            enter="ease-out duration-200" enterFrom="opacity-0" enterTo="opacity-100"
-            leave="ease-in duration-150" leaveFrom="opacity-100" leaveTo="opacity-0">
-            <div className="fixed inset-0 bg-black/40" />
-          </Transition.Child>
-          <div className="fixed inset-0 flex items-center justify-center p-4">
-            <Transition.Child as={Fragment}
-              enter="ease-out duration-200" enterFrom="opacity-0 scale-95" enterTo="opacity-100 scale-100"
-              leave="ease-in duration-150" leaveFrom="opacity-100 scale-100" leaveTo="opacity-0 scale-95">
-              <Dialog.Panel className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-                <div className="flex items-center justify-between mb-5">
-                  <Dialog.Title className="text-lg font-semibold text-slate-800">Registrar Movimiento</Dialog.Title>
-                  <button onClick={() => setOpen(false)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
-                </div>
-                <form onSubmit={handleSave} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Material *</label>
-                    <select required value={form.material_id} onChange={e => setForm(f => ({ ...f, material_id: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-amber-500">
-                      {materiales.map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
-                    <select value={form.tipo} onChange={e => setForm(f => ({ ...f, tipo: e.target.value as 'entrada' | 'salida' }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-amber-500">
-                      <option value="entrada">Entrada</option>
-                      <option value="salida">Salida</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Cantidad *</label>
-                    <input required type="number" min={1} value={form.cantidad}
-                      onChange={e => setForm(f => ({ ...f, cantidad: parseInt(e.target.value) || 1 }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-amber-500" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
-                    <input value={form.descripcion} onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-amber-500" />
-                  </div>
-                  <div className="flex gap-3 pt-2">
-                    <button type="button" onClick={() => setOpen(false)}
-                      className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50">Cancelar</button>
-                    <button type="submit" disabled={saving}
-                      className="flex-1 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm font-medium disabled:opacity-60 flex items-center justify-center gap-2">
-                      {saving && <div className="border-2 border-white border-t-transparent rounded-full w-4 h-4 animate-spin" />}
-                      Registrar
-                    </button>
-                  </div>
-                </form>
-              </Dialog.Panel>
-            </Transition.Child>
+      {/* Modal Material */}
+      <Modal open={modalMat} onClose={() => setModalMat(false)} title={editMat ? 'Editar Material' : 'Nuevo Material'}>
+        <form onSubmit={handleMat} className="space-y-4">
+          <Input label="Nombre" value={matForm.nombre} onChange={e => setMatForm(f=>({...f,nombre:e.target.value}))} required/>
+          <div className="grid grid-cols-2 gap-4">
+            <Select label="Unidad" value={matForm.unidad} onChange={e => setMatForm(f=>({...f,unidad:e.target.value}))}
+              options={UNIDADES.map(u=>({value:u,label:u}))}/>
+            <Input label="Precio Unitario (BOB)" type="number" value={matForm.precio_unitario} onChange={e => setMatForm(f=>({...f,precio_unitario:e.target.value}))}/>
           </div>
-        </Dialog>
-      </Transition>
+          <div className="grid grid-cols-2 gap-4">
+            <Input label="Stock Actual" type="number" value={matForm.stock_actual} onChange={e => setMatForm(f=>({...f,stock_actual:e.target.value}))}/>
+            <Input label="Stock Mínimo" type="number" value={matForm.stock_minimo} onChange={e => setMatForm(f=>({...f,stock_minimo:e.target.value}))}/>
+          </div>
+          <Input label="Proveedor" value={matForm.proveedor} onChange={e => setMatForm(f=>({...f,proveedor:e.target.value}))} placeholder="Nombre del proveedor"/>
+          <div className="flex justify-end gap-3">
+            <Button variant="secondary" type="button" onClick={() => setModalMat(false)}>Cancelar</Button>
+            <Button type="submit" loading={saving}>{editMat ? 'Actualizar' : 'Crear'}</Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Modal Movimiento */}
+      <Modal open={modalMov} onClose={() => setModalMov(false)} title={`Movimiento — ${selMat?.nombre}`} size="sm">
+        <form onSubmit={handleMov} className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <button type="button" onClick={() => setMovForm(f=>({...f,tipo:'entrada'}))}
+              className={`flex items-center justify-center gap-2 py-2.5 rounded-lg border-2 text-sm font-semibold transition-colors ${movForm.tipo==='entrada' ? 'border-verde-600 bg-verde-50 text-verde-700' : 'border-gray-200 text-gray-500'}`}>
+              <ArrowUp size={16}/>Entrada
+            </button>
+            <button type="button" onClick={() => setMovForm(f=>({...f,tipo:'salida'}))}
+              className={`flex items-center justify-center gap-2 py-2.5 rounded-lg border-2 text-sm font-semibold transition-colors ${movForm.tipo==='salida' ? 'border-red-500 bg-red-50 text-red-700' : 'border-gray-200 text-gray-500'}`}>
+              <ArrowDown size={16}/>Salida
+            </button>
+          </div>
+          <Input label="Cantidad" type="number" value={movForm.cantidad} onChange={e => setMovForm(f=>({...f,cantidad:e.target.value}))} required/>
+          <Select label="Proyecto (opcional)" value={movForm.proyecto_id} onChange={e => setMovForm(f=>({...f,proyecto_id:e.target.value}))}
+            placeholder="Sin proyecto" options={proyectos.map(p=>({value:p.id,label:p.nombre}))}/>
+          <Input label="Motivo" value={movForm.motivo} onChange={e => setMovForm(f=>({...f,motivo:e.target.value}))} placeholder="Descripción del movimiento"/>
+          <div className="flex justify-end gap-3">
+            <Button variant="secondary" type="button" onClick={() => setModalMov(false)}>Cancelar</Button>
+            <Button type="submit" loading={saving}>Registrar</Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   )
 }
