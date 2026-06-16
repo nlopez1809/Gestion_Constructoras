@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Plus, Search, FileText, Download, Trash2, File } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { supabase } from '@/lib/supabase'
+import { documentosApi, proyectosApi } from '@/lib/api'
 import { useAuthContext } from '@/store/authStore'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
@@ -13,28 +13,28 @@ import type { Documento, Proyecto, TipoDocumento } from '@/types'
 const tipoOptions = Object.entries(TIPO_DOC_LABELS).map(([value, label]) => ({ value, label }))
 
 export function Documentos() {
-  const { user, canDo } = useAuthContext()
-  const [docs, setDocs]           = useState<Documento[]>([])
-  const [proyectos, setProyectos] = useState<Proyecto[]>([])
-  const [loading, setLoading]     = useState(true)
-  const [search, setSearch]       = useState('')
+  const { canDo }                   = useAuthContext()
+  const [docs, setDocs]             = useState<Documento[]>([])
+  const [proyectos, setProyectos]   = useState<Proyecto[]>([])
+  const [loading, setLoading]       = useState(true)
+  const [search, setSearch]         = useState('')
   const [filtroTipo, setFiltroTipo] = useState<string>('todos')
-  const [modal, setModal]         = useState(false)
-  const [saving, setSaving]       = useState(false)
-  const [file, setFile]           = useState<File | null>(null)
-  const [form, setForm] = useState({ nombre: '', tipo: 'otro' as TipoDocumento, proyecto_id: '' })
+  const [modal, setModal]           = useState(false)
+  const [saving, setSaving]         = useState(false)
+  const [file, setFile]             = useState<File | null>(null)
+  const [form, setForm] = useState({ nombre: '', tipo: 'OTRO' as TipoDocumento, proyectoId: '' })
 
   const canWrite = canDo('documentos_write')
 
-  const load = async () => {
+  const load = () => {
     setLoading(true)
-    const [{ data: d }, { data: p }] = await Promise.all([
-      supabase.from('documentos').select('*, proyecto:proyectos(nombre), subido:profiles(nombres,apellidos)').order('created_at', { ascending: false }),
-      supabase.from('proyectos').select('id,nombre').order('nombre'),
-    ])
-    setDocs((d ?? []) as Documento[])
-    setProyectos((p ?? []) as Proyecto[])
-    setLoading(false)
+    Promise.all([documentosApi.list(), proyectosApi.list()])
+      .then(([d, p]) => {
+        setDocs(((d as { data?: Documento[] }).data ?? d) as Documento[])
+        setProyectos(((p as { data?: Proyecto[] }).data ?? p) as Proyecto[])
+      })
+      .catch(() => toast.error('Error al cargar documentos'))
+      .finally(() => setLoading(false))
   }
 
   useEffect(() => { load() }, [])
@@ -45,33 +45,28 @@ export function Documentos() {
     if (!file) return toast.error('Selecciona un archivo')
     setSaving(true)
     try {
-      const ext = file.name.split('.').pop()
-      const path = `documentos/${Date.now()}-${form.nombre.replace(/\s+/g, '_')}.${ext}`
-      const { error: upErr } = await supabase.storage.from('robles-docs').upload(path, file)
-      if (upErr) throw upErr
-      const { data: { publicUrl } } = supabase.storage.from('robles-docs').getPublicUrl(path)
-      const { error } = await supabase.from('documentos').insert({
-        nombre: form.nombre, tipo: form.tipo,
-        proyecto_id: form.proyecto_id || null,
-        url: publicUrl,
-        tamaño_kb: Math.round(file.size / 1024),
-        subido_por: user!.id,
-      })
-      if (error) throw error
-      toast.success('Documento subido')
-      setModal(false)
-      load()
-    } catch (err: unknown) {
+      const fd = new FormData()
+      fd.append('file', file)
+      fd.append('nombre', form.nombre)
+      fd.append('tipo', form.tipo)
+      if (form.proyectoId) fd.append('proyectoId', form.proyectoId)
+      await documentosApi.subir(fd)
+      toast.success('Documento subido'); setModal(false); load()
+    } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al subir')
+    } finally {
+      setSaving(false)
     }
-    setSaving(false)
   }
 
   const handleDelete = async (doc: Documento) => {
     if (!confirm('¿Eliminar este documento?')) return
-    await supabase.from('documentos').delete().eq('id', doc.id)
-    toast.success('Documento eliminado')
-    load()
+    try {
+      await documentosApi.delete(doc.id)
+      toast.success('Documento eliminado'); load()
+    } catch {
+      toast.error('Error al eliminar')
+    }
   }
 
   const filtered = docs.filter(d => {
@@ -80,11 +75,11 @@ export function Documentos() {
     return matchSearch && matchTipo
   })
 
-  const fmtSize = (kb: number | null) => !kb ? '—' : kb < 1024 ? `${kb} KB` : `${(kb/1024).toFixed(1)} MB`
+  const fmtSize = (kb: number | null) => !kb ? '—' : kb < 1024 ? `${kb} KB` : `${(kb / 1024).toFixed(1)} MB`
 
   const iconColor: Record<string, string> = {
-    plano: 'text-blue-600', contrato: 'text-purple-600',
-    permiso: 'text-orange-600', reporte: 'text-verde-600', otro: 'text-gray-500',
+    PLANO: 'text-blue-600', CONTRATO: 'text-purple-600',
+    PERMISO: 'text-orange-600', REPORTE: 'text-verde-600', OTRO: 'text-gray-500',
   }
 
   return (
@@ -95,7 +90,7 @@ export function Documentos() {
           <p className="text-sm text-gray-500 mt-1">{docs.length} documentos almacenados</p>
         </div>
         {canWrite && (
-          <Button onClick={() => { setForm({ nombre:'', tipo:'otro', proyecto_id:'' }); setFile(null); setModal(true) }}>
+          <Button onClick={() => { setForm({ nombre: '', tipo: 'OTRO', proyectoId: '' }); setFile(null); setModal(true) }}>
             <Plus size={16} />Subir Documento
           </Button>
         )}
@@ -133,7 +128,7 @@ export function Documentos() {
           {filtered.map(doc => (
             <div key={doc.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-shadow">
               <div className="flex items-start gap-3">
-                <div className={`flex-shrink-0 ${iconColor[doc.tipo ?? 'otro']}`}>
+                <div className={`flex-shrink-0 ${iconColor[doc.tipo ?? 'OTRO']}`}>
                   <File size={32} />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -144,13 +139,10 @@ export function Documentos() {
                         {TIPO_DOC_LABELS[doc.tipo]}
                       </Badge>
                     )}
-                    {(doc.proyecto as any)?.nombre && (
-                      <span className="text-xs text-verde-600 truncate">{(doc.proyecto as any).nombre}</span>
-                    )}
                   </div>
                   <div className="flex items-center justify-between mt-2">
                     <p className="text-xs text-gray-400">
-                      {fmtSize(doc.tamaño_kb)} · {new Date(doc.created_at).toLocaleDateString('es-BO')}
+                      {fmtSize(doc.tamañoKb)} · {new Date(doc.createdAt).toLocaleDateString('es-BO')}
                     </p>
                     <div className="flex gap-1">
                       <a href={doc.url} target="_blank" rel="noopener noreferrer"
@@ -179,8 +171,8 @@ export function Documentos() {
           <Select label="Tipo" value={form.tipo}
             onChange={e => setForm(f => ({ ...f, tipo: e.target.value as TipoDocumento }))}
             options={tipoOptions} />
-          <Select label="Proyecto (opcional)" value={form.proyecto_id}
-            onChange={e => setForm(f => ({ ...f, proyecto_id: e.target.value }))}
+          <Select label="Proyecto (opcional)" value={form.proyectoId}
+            onChange={e => setForm(f => ({ ...f, proyectoId: e.target.value }))}
             placeholder="Sin proyecto" options={proyectos.map(p => ({ value: p.id, label: p.nombre }))} />
           <div className="space-y-1">
             <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide">Archivo *</label>

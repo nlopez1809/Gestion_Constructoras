@@ -24,7 +24,7 @@ export function ProtectedRoute({ children, roles }: Props) {
 
   if (!user) return <Navigate to="/login" replace />
 
-  if (roles && !roles.includes(user.profile.rol) && user.profile.rol !== 'admin') {
+  if (roles && !roles.includes(user.rol) && user.rol !== 'ADMIN') {
     return <Navigate to="/dashboard" replace />
   }
 

@@ -1,14 +1,13 @@
 import { createContext, useContext } from 'react'
-import type { AuthUser } from '@/types'
+import type { AuthUser, Rol } from '@/types'
 import { PERMISOS } from '@/lib/constants'
-import type { Rol } from '@/types'
 
 export interface AuthContextValue {
   user: AuthUser | null
   loading: boolean
   signIn: (email: string, password: string) => Promise<void>
-  signUp: (email: string, password: string, meta: { nombres: string; apellidos: string; cargo: string }) => Promise<void>
-  signOut: () => Promise<void>
+  signUp: (data: { nombre: string; email: string; password: string; rol: Rol }) => Promise<void>
+  signOut: () => void
   canDo: (permission: string) => boolean
   hasRole: (...roles: Rol[]) => boolean
 }
@@ -23,7 +22,7 @@ export function useAuthContext() {
 
 export function canDoHelper(user: AuthUser | null, permission: string): boolean {
   if (!user) return false
-  if (user.profile.rol === 'admin') return true
+  if (user.rol === 'ADMIN') return true
   const allowed: Rol[] = (PERMISOS[permission] as Rol[]) ?? []
-  return allowed.includes(user.profile.rol)
+  return allowed.includes(user.rol)
 }

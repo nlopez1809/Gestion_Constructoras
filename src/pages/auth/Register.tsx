@@ -39,8 +39,11 @@ export function Register() {
     if (form.password !== form.confirm) return toast.error('Las contraseñas no coinciden')
     setLoading(true)
     try {
-      await signUp(form.email, form.password, {
-        nombres: form.nombres, apellidos: form.apellidos, cargo: form.cargo,
+      await signUp({
+        nombre: `${form.nombres} ${form.apellidos}`.trim(),
+        email: form.email,
+        password: form.password,
+        rol: 'OBRA',
       })
       toast.success('Cuenta creada. Tu acceso será activado por el administrador.')
     } catch (err: unknown) {

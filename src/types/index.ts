@@ -1,38 +1,22 @@
 // ─── Auth & Users ───────────────────────────────────────────────────────────
 
-export type Rol =
-  | 'admin'
-  | 'gerente'
-  | 'ingeniero'
-  | 'maestro'
-  | 'contador'
-  | 'ventas'
-  | 'viewer'
-
-export interface Profile {
-  id: string
-  nombres: string
-  apellidos: string
-  cargo: string
-  rol: Rol
-  activo: boolean
-  avatar_url: string | null
-  created_at: string
-}
+export type Rol = 'ADMIN' | 'GERENCIA' | 'FINANZAS' | 'COMERCIAL' | 'OBRA' | 'RRHH' | 'LEGAL'
 
 export interface AuthUser {
   id: string
+  nombre: string
   email: string
-  profile: Profile
+  rol: Rol
+  activo: boolean
 }
 
 // ─── Proyectos ───────────────────────────────────────────────────────────────
 
 export type EstadoProyecto =
-  | 'planificacion'
-  | 'en_proceso'
-  | 'pausado'
-  | 'terminado'
+  | 'EN_PLANIFICACION'
+  | 'EN_CONSTRUCCION'
+  | 'ENTREGADO'
+  | 'SUSPENDIDO'
 
 export type TipoProyecto =
   | 'residencial'
@@ -44,56 +28,33 @@ export type TipoProyecto =
 
 export interface Proyecto {
   id: string
+  codigo: string
   nombre: string
   descripcion: string | null
-  tipo: TipoProyecto
+  ubicacion: string
+  ciudad: string
+  totalUnidades: number
+  presupuesto: number
+  fechaInicio: string
+  fechaEntrega: string
   estado: EstadoProyecto
-  ubicacion: string | null
-  presupuesto_total: number
-  presupuesto_gastado: number
-  fecha_inicio: string | null
-  fecha_fin_estimada: string | null
-  fecha_fin_real: string | null
-  responsable_id: string | null
-  created_by: string | null
-  created_at: string
-  updated_at: string
-  // joined
-  responsable?: Profile
+  avancePct: number
+  createdAt: string
+  updatedAt: string
 }
 
-// ─── Tareas ──────────────────────────────────────────────────────────────────
+// ─── Empleados ────────────────────────────────────────────────────────────────
 
-export type EstadoTarea = 'pendiente' | 'en_progreso' | 'completada' | 'cancelada'
-export type PrioridadTarea = 'baja' | 'media' | 'alta' | 'critica'
-
-export interface Tarea {
+export interface Empleado {
   id: string
-  proyecto_id: string
-  titulo: string
-  descripcion: string | null
-  estado: EstadoTarea
-  prioridad: PrioridadTarea
-  asignado_a: string | null
-  fecha_vencimiento: string | null
-  completada_at: string | null
-  created_by: string | null
-  created_at: string
-  // joined
-  asignado?: Profile
-  proyecto?: Proyecto
-}
-
-// ─── Personal ────────────────────────────────────────────────────────────────
-
-export interface ProyectoPersonal {
-  id: string
-  proyecto_id: string
-  perfil_id: string
-  rol_en_proyecto: string | null
-  fecha_ingreso: string
-  perfil?: Profile
-  proyecto?: Proyecto
+  nombre: string
+  apellido: string
+  ci: string
+  cargo: string
+  rol: Rol
+  salarioBase: number
+  activo: boolean
+  createdAt: string
 }
 
 // ─── Inventario ──────────────────────────────────────────────────────────────
@@ -102,64 +63,58 @@ export interface Material {
   id: string
   nombre: string
   unidad: string
-  stock_actual: number
-  stock_minimo: number
-  precio_unitario: number
+  stockActual: number
+  stockMinimo: number
+  precioUnitario: number
   proveedor: string | null
-  created_at: string
-  updated_at: string
+  createdAt: string
+  updatedAt: string
 }
 
-export type TipoMovimiento = 'entrada' | 'salida'
+export type TipoMovimiento = 'ENTRADA' | 'SALIDA'
 
 export interface MovimientoInventario {
   id: string
-  material_id: string
-  proyecto_id: string | null
+  materialId: string
+  proyectoId: string | null
   tipo: TipoMovimiento
   cantidad: number
   motivo: string | null
-  realizado_por: string | null
-  created_at: string
+  creadoPor: string | null
+  createdAt: string
   material?: Material
-  proyecto?: Proyecto
-  realizado?: Profile
 }
 
 // ─── Finanzas ────────────────────────────────────────────────────────────────
 
-export type TipoTransaccion = 'ingreso' | 'egreso'
+export type TipoMovimientoFin = 'INGRESO' | 'EGRESO'
 
-export interface Transaccion {
+export interface MovimientoFinanciero {
   id: string
-  proyecto_id: string | null
-  tipo: TipoTransaccion
+  proyectoId: string | null
+  tipo: TipoMovimientoFin
   categoria: string | null
   descripcion: string
   monto: number
   fecha: string
-  comprobante_url: string | null
-  registrado_por: string | null
-  created_at: string
-  proyecto?: Proyecto
-  registrado?: Profile
+  comprobanteUrl: string | null
+  creadoPor: string | null
+  createdAt: string
 }
 
 // ─── Documentos ──────────────────────────────────────────────────────────────
 
-export type TipoDocumento = 'plano' | 'contrato' | 'permiso' | 'reporte' | 'otro'
+export type TipoDocumento = 'PLANO' | 'CONTRATO' | 'PERMISO' | 'REPORTE' | 'OTRO'
 
 export interface Documento {
   id: string
-  proyecto_id: string | null
+  proyectoId: string | null
   nombre: string
   tipo: TipoDocumento | null
   url: string
-  tamaño_kb: number | null
-  subido_por: string | null
-  created_at: string
-  proyecto?: Proyecto
-  subido?: Profile
+  tamañoKb: number | null
+  subidoPor: string | null
+  createdAt: string
 }
 
 // ─── UI helpers ──────────────────────────────────────────────────────────────

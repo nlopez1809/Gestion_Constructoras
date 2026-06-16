@@ -58,14 +58,14 @@ export function Sidebar() {
         <div className="px-3 py-4 border-t border-verde-700">
           <div className="flex items-center gap-3 px-2 py-2 rounded-lg">
             <div className="w-8 h-8 rounded-full bg-verde-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-              {user.profile.nombres[0]}{user.profile.apellidos[0]}
+              {user.nombre[0]}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-white text-sm font-medium truncate">
-                {user.profile.nombres} {user.profile.apellidos}
+                {user.nombre}
               </p>
-              <Badge className={`text-[10px] mt-0.5 ${ROL_COLORS[user.profile.rol]}`}>
-                {ROL_LABELS[user.profile.rol]}
+              <Badge className={`text-[10px] mt-0.5 ${ROL_COLORS[user.rol]}`}>
+                {ROL_LABELS[user.rol]}
               </Badge>
             </div>
           </div>
