@@ -192,7 +192,7 @@ function initCharts(meses) {
     // Etiqueta mes
     ctx.fillStyle = '#9a8272'; ctx.font = i === meses.length-1 ? 'bold 8.5px DM Sans' : '8.5px DM Sans';
     ctx.textAlign = 'center';
-    ctx.fillText(m.mesLabel.slice(0,3), x + barW / 2, 160 - 6);
+    ctx.fillText(m.mesLabel?.slice(0,3) || m.mes || '', x + barW / 2, 160 - 6);
 
     // Punto línea flujo neto
     const netoPct = ((m.neto / maxV));
