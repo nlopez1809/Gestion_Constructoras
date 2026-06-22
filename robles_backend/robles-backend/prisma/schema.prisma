@@ -42,6 +42,7 @@ enum Rol {
   OBRA
   RRHH
   LEGAL
+  VENDEDOR
 }
 
 // ─────────────────────────────────────────
