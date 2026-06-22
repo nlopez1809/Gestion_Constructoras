@@ -1,7 +1,8 @@
 [build]
-  publish = "public"
+  command   = "echo 'No build needed'"
+  publish   = "public"
 
-[[redirects]]
-  from   = "/*"
-  to     = "/index.html"
-  status = 200
+[[headers]]
+  for = "/*.js"
+  [headers.values]
+    Content-Type = "application/javascript"
