@@ -90,8 +90,272 @@ document.getElementById('btn-sidebar-toggle').addEventListener('click', () => {
 });
 
 // ── ACCIONES GLOBALES (botón + de topbar) ──
-document.getElementById('btn-global-action').addEventListener('click', () => {
-  document.getElementById('globalModal')?.classList.add('open');
+document.getElementById('btn-global-action').addEventListener('click', async () => {
+  const modal = document.getElementById('globalModal');
+  const title = document.getElementById('modal-title');
+  const body  = document.getElementById('modal-body');
+  if (!modal || !body) return;
+
+  const { proyectosApi, clientesApi, empleadosApi, ventasApi, unidadesApi, gastosApi, finanzasApi, contratosApi, campanasApi, leadsApi } = await import('./api/index.js');
+  const { toast, showLoading, hideLoading } = await import('./utils/ui.js');
+
+  const inputStyle = 'width:100%;background:var(--off);border:1px solid var(--border);border-radius:8px;padding:9px 12px;font-size:13px;font-family:"DM Sans",sans-serif;color:var(--text);outline:none;';
+  const labelStyle = 'font-size:10px;font-weight:500;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;display:block;';
+  const fgStyle = 'margin-bottom:12px;';
+  const btnStyle = 'width:100%;background:var(--bark);color:white;border:none;border-radius:10px;padding:12px;font-size:13px;font-weight:500;cursor:pointer;font-family:"DM Sans",sans-serif;margin-top:8px;';
+  const rowStyle = 'display:grid;grid-template-columns:1fr 1fr;gap:12px;';
+
+  const forms = {
+    dashboard: () => { title.textContent = 'Acción rápida'; body.innerHTML = `<p style="color:var(--text-muted);font-size:12.5px">Navega a un módulo específico y usa el botón + para crear registros.</p>`; },
+
+    proyectos: async () => {
+      title.textContent = 'Nuevo proyecto';
+      body.innerHTML = `<form id="frmGlobal">
+        <div style="${fgStyle}"><label style="${labelStyle}">Código</label><input style="${inputStyle}" name="codigo" placeholder="TR3" required></div>
+        <div style="${fgStyle}"><label style="${labelStyle}">Nombre</label><input style="${inputStyle}" name="nombre" placeholder="Torre Roble III" required></div>
+        <div style="${fgStyle}"><label style="${labelStyle}">Ubicación</label><input style="${inputStyle}" name="ubicacion" placeholder="Av. América 1234" required></div>
+        <div style="${rowStyle}">
+          <div style="${fgStyle}"><label style="${labelStyle}">Ciudad</label><input style="${inputStyle}" name="ciudad" value="Cochabamba"></div>
+          <div style="${fgStyle}"><label style="${labelStyle}">Total unidades</label><input style="${inputStyle}" name="totalUnidades" type="number" placeholder="24" required></div>
+        </div>
+        <div style="${rowStyle}">
+          <div style="${fgStyle}"><label style="${labelStyle}">Total m²</label><input style="${inputStyle}" name="totalM2" type="number" step="0.01" required></div>
+          <div style="${fgStyle}"><label style="${labelStyle}">Presupuesto USD</label><input style="${inputStyle}" name="presupuesto" type="number" step="0.01" required></div>
+        </div>
+        <div style="${rowStyle}">
+          <div style="${fgStyle}"><label style="${labelStyle}">Fecha inicio</label><input style="${inputStyle}" name="fechaInicio" type="date" required></div>
+          <div style="${fgStyle}"><label style="${labelStyle}">Fecha entrega</label><input style="${inputStyle}" name="fechaEntrega" type="date" required></div>
+        </div>
+        <button type="submit" style="${btnStyle}">Crear proyecto</button>
+      </form>`;
+      document.getElementById('frmGlobal').onsubmit = async (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        try {
+          showLoading('Creando proyecto...');
+          await proyectosApi.create({ codigo: fd.get('codigo'), nombre: fd.get('nombre'), ubicacion: fd.get('ubicacion'), ciudad: fd.get('ciudad'), totalUnidades: +fd.get('totalUnidades'), totalM2: +fd.get('totalM2'), presupuesto: +fd.get('presupuesto'), fechaInicio: fd.get('fechaInicio'), fechaEntrega: fd.get('fechaEntrega') });
+          hideLoading(); toast('Proyecto creado', 'ok'); modal.classList.remove('open'); window.navigateTo('proyectos');
+        } catch(err) { hideLoading(); toast('Error: '+err.message, 'err'); }
+      };
+    },
+
+    ventas: async () => {
+      title.textContent = 'Nueva venta';
+      const [clientes, proyectos] = await Promise.all([clientesApi.list(), proyectosApi.list()]);
+      body.innerHTML = `<form id="frmGlobal">
+        <div style="${fgStyle}"><label style="${labelStyle}">Cliente</label><select style="${inputStyle}" name="clienteId" required><option value="">Seleccionar...</option>${clientes.map(c=>`<option value="${c.id}">${c.nombre} ${c.apellido}</option>`).join('')}</select></div>
+        <div style="${fgStyle}"><label style="${labelStyle}">Proyecto</label><select style="${inputStyle}" name="proyectoId" id="selProyVenta" required><option value="">Seleccionar...</option>${proyectos.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join('')}</select></div>
+        <div style="${fgStyle}"><label style="${labelStyle}">Unidad</label><select style="${inputStyle}" name="unidadId" id="selUnidadVenta" required><option value="">Primero seleccione proyecto</option></select></div>
+        <div style="${rowStyle}">
+          <div style="${fgStyle}"><label style="${labelStyle}">Precio final USD</label><input style="${inputStyle}" name="precioFinal" type="number" step="0.01" required></div>
+          <div style="${fgStyle}"><label style="${labelStyle}">Total cuotas</label><input style="${inputStyle}" name="totalCuotas" type="number" value="36" required></div>
+        </div>
+        <div style="${fgStyle}"><label style="${labelStyle}">Fecha de venta</label><input style="${inputStyle}" name="fechaVenta" type="date" value="${new Date().toISOString().slice(0,10)}" required></div>
+        <button type="submit" style="${btnStyle}">Registrar venta</button>
+      </form>`;
+      document.getElementById('selProyVenta').onchange = async (ev) => {
+        const sel = document.getElementById('selUnidadVenta');
+        if (!ev.target.value) { sel.innerHTML = '<option value="">Primero seleccione proyecto</option>'; return; }
+        const unis = await unidadesApi.list({ proyectoId: ev.target.value, estado: 'DISPONIBLE' });
+        sel.innerHTML = `<option value="">Seleccionar...</option>${(unis||[]).map(u=>`<option value="${u.id}">${u.codigo} — ${u.tipo} — ${u.m2}m² — $${u.precioBase}</option>`).join('')}`;
+      };
+      document.getElementById('frmGlobal').onsubmit = async (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        try {
+          showLoading('Registrando venta...');
+          await ventasApi.create({ clienteId: fd.get('clienteId'), unidadId: fd.get('unidadId'), precioFinal: +fd.get('precioFinal'), totalCuotas: +fd.get('totalCuotas'), fechaVenta: fd.get('fechaVenta') });
+          hideLoading(); toast('Venta registrada', 'ok'); modal.classList.remove('open'); window.navigateTo('ventas');
+        } catch(err) { hideLoading(); toast('Error: '+err.message, 'err'); }
+      };
+    },
+
+    rrhh: async () => {
+      title.textContent = 'Nuevo empleado';
+      const proyectos = await proyectosApi.list();
+      body.innerHTML = `<form id="frmGlobal">
+        <div style="${rowStyle}">
+          <div style="${fgStyle}"><label style="${labelStyle}">Nombre</label><input style="${inputStyle}" name="nombre" required></div>
+          <div style="${fgStyle}"><label style="${labelStyle}">Apellido</label><input style="${inputStyle}" name="apellido" required></div>
+        </div>
+        <div style="${rowStyle}">
+          <div style="${fgStyle}"><label style="${labelStyle}">CI</label><input style="${inputStyle}" name="ci" required></div>
+          <div style="${fgStyle}"><label style="${labelStyle}">Cargo</label><input style="${inputStyle}" name="cargo" placeholder="Albañil, Electricista..." required></div>
+        </div>
+        <div style="${rowStyle}">
+          <div style="${fgStyle}"><label style="${labelStyle}">Especialidad</label><input style="${inputStyle}" name="especialidad" placeholder="Estructura, Acabados..."></div>
+          <div style="${fgStyle}"><label style="${labelStyle}">Teléfono</label><input style="${inputStyle}" name="telefono" placeholder="+591 70012345"></div>
+        </div>
+        <div style="${fgStyle}"><label style="${labelStyle}">Email</label><input style="${inputStyle}" name="email" type="email" placeholder="empleado@email.com"></div>
+        <div style="${rowStyle}">
+          <div style="${fgStyle}"><label style="${labelStyle}">Salario base Bs</label><input style="${inputStyle}" name="salarioBase" type="number" step="0.01" required></div>
+          <div style="${fgStyle}"><label style="${labelStyle}">Tipo contrato</label><select style="${inputStyle}" name="tipoContrato" required><option value="POR_OBRA">Por obra</option><option value="A_PLAZO_FIJO">A plazo fijo</option><option value="INDEFINIDO">Indefinido</option></select></div>
+        </div>
+        <div style="${rowStyle}">
+          <div style="${fgStyle}"><label style="${labelStyle}">Fecha ingreso</label><input style="${inputStyle}" name="fechaIngreso" type="date" value="${new Date().toISOString().slice(0,10)}" required></div>
+          <div style="${fgStyle}"><label style="${labelStyle}">Proyecto</label><select style="${inputStyle}" name="proyectoId"><option value="">Sin asignar</option>${proyectos.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join('')}</select></div>
+        </div>
+        <button type="submit" style="${btnStyle}">Crear empleado</button>
+      </form>`;
+      document.getElementById('frmGlobal').onsubmit = async (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        try {
+          showLoading('Creando empleado...');
+          await empleadosApi.create({ nombre: fd.get('nombre'), apellido: fd.get('apellido'), ci: fd.get('ci'), cargo: fd.get('cargo'), especialidad: fd.get('especialidad')||undefined, telefono: fd.get('telefono')||undefined, email: fd.get('email')||undefined, salarioBase: +fd.get('salarioBase'), tipoContrato: fd.get('tipoContrato'), fechaIngreso: fd.get('fechaIngreso'), proyectoId: fd.get('proyectoId')||undefined });
+          hideLoading(); toast('Empleado creado', 'ok'); modal.classList.remove('open'); window.navigateTo('rrhh');
+        } catch(err) { hideLoading(); toast('Error: '+err.message, 'err'); }
+      };
+    },
+
+    costos: async () => {
+      title.textContent = 'Registrar gasto';
+      const proyectos = await proyectosApi.list();
+      body.innerHTML = `<form id="frmGlobal">
+        <div style="${fgStyle}"><label style="${labelStyle}">Proyecto</label><select style="${inputStyle}" name="proyectoId" required><option value="">Seleccionar...</option>${proyectos.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join('')}</select></div>
+        <div style="${fgStyle}"><label style="${labelStyle}">Descripción</label><input style="${inputStyle}" name="descripcion" placeholder="Compra de cemento, mano de obra..." required></div>
+        <div style="${rowStyle}">
+          <div style="${fgStyle}"><label style="${labelStyle}">Categoría</label><select style="${inputStyle}" name="categoria" required><option value="Materiales">Materiales</option><option value="Mano de obra">Mano de obra</option><option value="Equipamiento">Equipamiento</option><option value="Gastos adm.">Gastos administrativos</option><option value="Marketing">Marketing</option><option value="Otros">Otros</option></select></div>
+          <div style="${fgStyle}"><label style="${labelStyle}">Tipo</label><select style="${inputStyle}" name="tipo"><option value="Directo">Directo</option><option value="Indirecto">Indirecto</option></select></div>
+        </div>
+        <div style="${rowStyle}">
+          <div style="${fgStyle}"><label style="${labelStyle}">Monto USD</label><input style="${inputStyle}" name="montoUSD" type="number" step="0.01" required></div>
+          <div style="${fgStyle}"><label style="${labelStyle}">Fecha</label><input style="${inputStyle}" name="fecha" type="date" value="${new Date().toISOString().slice(0,10)}" required></div>
+        </div>
+        <div style="${fgStyle}"><label style="${labelStyle}">N° factura (opcional)</label><input style="${inputStyle}" name="factura" placeholder="FAC-00123"></div>
+        <button type="submit" style="${btnStyle}">Registrar gasto</button>
+      </form>`;
+      document.getElementById('frmGlobal').onsubmit = async (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        try {
+          showLoading('Registrando gasto...');
+          await gastosApi.create({ proyectoId: fd.get('proyectoId'), descripcion: fd.get('descripcion'), categoria: fd.get('categoria'), tipo: fd.get('tipo'), montoUSD: +fd.get('montoUSD'), fecha: fd.get('fecha'), factura: fd.get('factura')||undefined });
+          hideLoading(); toast('Gasto registrado', 'ok'); modal.classList.remove('open'); window.navigateTo('costos');
+        } catch(err) { hideLoading(); toast('Error: '+err.message, 'err'); }
+      };
+    },
+
+    finanzas: async () => {
+      title.textContent = 'Registrar movimiento';
+      body.innerHTML = `<form id="frmGlobal">
+        <div style="${rowStyle}">
+          <div style="${fgStyle}"><label style="${labelStyle}">Tipo</label><select style="${inputStyle}" name="tipo" required><option value="INGRESO">Ingreso</option><option value="EGRESO">Egreso</option></select></div>
+          <div style="${fgStyle}"><label style="${labelStyle}">Categoría</label><select style="${inputStyle}" name="categoria" required><option value="Pago de cuota">Pago de cuota</option><option value="Reserva">Reserva</option><option value="Nómina">Nómina</option><option value="Materiales">Materiales</option><option value="Equipamiento">Equipamiento</option><option value="Gastos adm.">Gastos adm.</option><option value="Otros">Otros</option></select></div>
+        </div>
+        <div style="${fgStyle}"><label style="${labelStyle}">Concepto</label><input style="${inputStyle}" name="concepto" placeholder="Pago cuota cliente, compra materiales..." required></div>
+        <div style="${rowStyle}">
+          <div style="${fgStyle}"><label style="${labelStyle}">Monto USD</label><input style="${inputStyle}" name="montoUSD" type="number" step="0.01" required></div>
+          <div style="${fgStyle}"><label style="${labelStyle}">Método</label><select style="${inputStyle}" name="metodo"><option value="Transferencia">Transferencia</option><option value="Depósito">Depósito</option><option value="Efectivo">Efectivo</option><option value="Cheque">Cheque</option></select></div>
+        </div>
+        <div style="${rowStyle}">
+          <div style="${fgStyle}"><label style="${labelStyle}">Fecha</label><input style="${inputStyle}" name="fecha" type="date" value="${new Date().toISOString().slice(0,10)}" required></div>
+          <div style="${fgStyle}"><label style="${labelStyle}">Referencia (opcional)</label><input style="${inputStyle}" name="referencia" placeholder="N° transacción"></div>
+        </div>
+        <button type="submit" style="${btnStyle}">Registrar movimiento</button>
+      </form>`;
+      document.getElementById('frmGlobal').onsubmit = async (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        try {
+          showLoading('Registrando...');
+          await finanzasApi.crear({ tipo: fd.get('tipo'), concepto: fd.get('concepto'), categoria: fd.get('categoria'), montoUSD: +fd.get('montoUSD'), metodo: fd.get('metodo'), fecha: fd.get('fecha'), referencia: fd.get('referencia')||undefined });
+          hideLoading(); toast('Movimiento registrado', 'ok'); modal.classList.remove('open'); window.navigateTo('finanzas');
+        } catch(err) { hideLoading(); toast('Error: '+err.message, 'err'); }
+      };
+    },
+
+    legal: async () => {
+      title.textContent = 'Nuevo contrato';
+      const [clientes, proyectos] = await Promise.all([clientesApi.list(), proyectosApi.list()]);
+      body.innerHTML = `<form id="frmGlobal">
+        <div style="${rowStyle}">
+          <div style="${fgStyle}"><label style="${labelStyle}">Cliente</label><select style="${inputStyle}" name="clienteId" required><option value="">Seleccionar...</option>${clientes.map(c=>`<option value="${c.id}">${c.nombre} ${c.apellido}</option>`).join('')}</select></div>
+          <div style="${fgStyle}"><label style="${labelStyle}">Proyecto</label><select style="${inputStyle}" name="proyectoId" required><option value="">Seleccionar...</option>${proyectos.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join('')}</select></div>
+        </div>
+        <div style="${rowStyle}">
+          <div style="${fgStyle}"><label style="${labelStyle}">Tipo</label><select style="${inputStyle}" name="tipo"><option value="Compraventa">Compraventa</option><option value="Promesa">Promesa</option></select></div>
+          <div style="${fgStyle}"><label style="${labelStyle}">Monto USD</label><input style="${inputStyle}" name="monto" type="number" step="0.01" required></div>
+        </div>
+        <div style="${rowStyle}">
+          <div style="${fgStyle}"><label style="${labelStyle}">Notaría</label><input style="${inputStyle}" name="notaria" placeholder="Notaría N° 12"></div>
+          <div style="${fgStyle}"><label style="${labelStyle}">Fecha emisión</label><input style="${inputStyle}" name="fechaEmision" type="date" value="${new Date().toISOString().slice(0,10)}" required></div>
+        </div>
+        <button type="submit" style="${btnStyle}">Crear contrato</button>
+      </form>`;
+      document.getElementById('frmGlobal').onsubmit = async (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        try {
+          showLoading('Creando contrato...');
+          await contratosApi.create({ clienteId: fd.get('clienteId'), proyectoId: fd.get('proyectoId'), tipo: fd.get('tipo'), monto: +fd.get('monto'), notaria: fd.get('notaria')||undefined, fechaEmision: fd.get('fechaEmision') });
+          hideLoading(); toast('Contrato creado', 'ok'); modal.classList.remove('open'); window.navigateTo('legal');
+        } catch(err) { hideLoading(); toast('Error: '+err.message, 'err'); }
+      };
+    },
+
+    marketing: async () => {
+      title.textContent = 'Nueva campaña';
+      const proyectos = await proyectosApi.list();
+      body.innerHTML = `<form id="frmGlobal">
+        <div style="${fgStyle}"><label style="${labelStyle}">Nombre</label><input style="${inputStyle}" name="nombre" placeholder="Campaña Facebook Ads - Torre II" required></div>
+        <div style="${rowStyle}">
+          <div style="${fgStyle}"><label style="${labelStyle}">Canal</label><select style="${inputStyle}" name="canal" required><option value="FACEBOOK_ADS">Facebook Ads</option><option value="INSTAGRAM">Instagram</option><option value="GOOGLE_ADS">Google Ads</option><option value="WHATSAPP">WhatsApp</option><option value="REFERIDOS">Referidos</option><option value="WEB">Web</option><option value="OTRO">Otro</option></select></div>
+          <div style="${fgStyle}"><label style="${labelStyle}">Proyecto</label><select style="${inputStyle}" name="proyectoId"><option value="">General</option>${proyectos.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join('')}</select></div>
+        </div>
+        <div style="${fgStyle}"><label style="${labelStyle}">Objetivo</label><input style="${inputStyle}" name="objetivo" placeholder="Generación de leads, reconocimiento..." required></div>
+        <div style="${rowStyle}">
+          <div style="${fgStyle}"><label style="${labelStyle}">Presupuesto USD</label><input style="${inputStyle}" name="presupuesto" type="number" step="0.01" required></div>
+          <div style="${fgStyle}"><label style="${labelStyle}">Meta leads</label><input style="${inputStyle}" name="metaLeads" type="number" value="0"></div>
+        </div>
+        <div style="${fgStyle}"><label style="${labelStyle}">Fecha inicio</label><input style="${inputStyle}" name="fechaInicio" type="date" value="${new Date().toISOString().slice(0,10)}" required></div>
+        <button type="submit" style="${btnStyle}">Crear campaña</button>
+      </form>`;
+      document.getElementById('frmGlobal').onsubmit = async (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        try {
+          showLoading('Creando campaña...');
+          await campanasApi.create({ nombre: fd.get('nombre'), canal: fd.get('canal'), proyectoId: fd.get('proyectoId')||undefined, objetivo: fd.get('objetivo'), presupuesto: +fd.get('presupuesto'), metaLeads: +fd.get('metaLeads'), fechaInicio: fd.get('fechaInicio') });
+          hideLoading(); toast('Campaña creada', 'ok'); modal.classList.remove('open'); window.navigateTo('marketing');
+        } catch(err) { hideLoading(); toast('Error: '+err.message, 'err'); }
+      };
+    },
+
+    compras: async () => {
+      title.textContent = 'Nueva orden de compra';
+      const [proyectos, proveedores] = await Promise.all([proyectosApi.list(), (await import('./api/index.js')).proveedoresApi.list()]);
+      body.innerHTML = `<form id="frmGlobal">
+        <div style="${rowStyle}">
+          <div style="${fgStyle}"><label style="${labelStyle}">Proveedor</label><select style="${inputStyle}" name="proveedorId" required><option value="">Seleccionar...</option>${proveedores.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join('')}</select></div>
+          <div style="${fgStyle}"><label style="${labelStyle}">Proyecto</label><select style="${inputStyle}" name="proyectoId" required><option value="">Seleccionar...</option>${proyectos.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join('')}</select></div>
+        </div>
+        <div style="${fgStyle}"><label style="${labelStyle}">Descripción del item</label><input style="${inputStyle}" name="descripcion" placeholder="Cemento Portland x 50 bolsas" required></div>
+        <div style="${rowStyle}">
+          <div style="${fgStyle}"><label style="${labelStyle}">Cantidad</label><input style="${inputStyle}" name="cantidad" type="number" step="0.01" required></div>
+          <div style="${fgStyle}"><label style="${labelStyle}">Precio unitario USD</label><input style="${inputStyle}" name="precioUnit" type="number" step="0.01" required></div>
+        </div>
+        <div style="${fgStyle}"><label style="${labelStyle}">Fecha emisión</label><input style="${inputStyle}" name="fechaEmision" type="date" value="${new Date().toISOString().slice(0,10)}" required></div>
+        <button type="submit" style="${btnStyle}">Crear orden</button>
+      </form>`;
+      document.getElementById('frmGlobal').onsubmit = async (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        const cant = +fd.get('cantidad'), pu = +fd.get('precioUnit'), sub = cant*pu, iva = sub*0.13, total = sub+iva;
+        try {
+          showLoading('Creando orden...');
+          await (await import('./api/index.js')).ordenesApi.create({ proveedorId: fd.get('proveedorId'), proyectoId: fd.get('proyectoId'), fechaEmision: fd.get('fechaEmision'), subtotal: sub, iva, total, items: [{ descripcion: fd.get('descripcion'), unidad: 'unidad', cantidad: cant, precioUnit: pu, total: cant*pu }] });
+          hideLoading(); toast('Orden creada', 'ok'); modal.classList.remove('open'); window.navigateTo('compras');
+        } catch(err) { hideLoading(); toast('Error: '+err.message, 'err'); }
+      };
+    },
+
+    reportes: () => { title.textContent = 'Exportar reportes'; body.innerHTML = `<p style="color:var(--text-muted);font-size:12.5px">Usa los botones de descarga en la sección de reportes para generar PDF y Excel.</p>`; },
+  };
+
+  const formFn = forms[_currentModule] || forms.dashboard;
+  await formFn();
+  modal.classList.add('open');
 });
 
 // ── MÓDULO COMPRAS (stub) ──
