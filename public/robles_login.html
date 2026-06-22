@@ -142,7 +142,7 @@ const DEMO_PASS = 'Robles2026!';
 // Verificar conexión al API
 async function checkApi() {
   try {
-    const r = await fetch(`${API}/health`);
+    const r = await fetch(`${API}/health`, {headers:{'ngrok-skip-browser-warning':'1'}});
     const d = await r.json();
     document.getElementById('apiDot').className = 'api-dot ok';
     document.getElementById('apiTxt').textContent = `Servidor conectado — ${d.sistema}`;
@@ -178,7 +178,7 @@ async function handleLogin(e) {
   try {
     const res = await fetch(`${API}/auth/login`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
       body: JSON.stringify({ email, password })
     });
     const data = await res.json();

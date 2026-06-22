@@ -14,7 +14,7 @@ async function refreshToken() {
 }
 async function apiFetch(path,opts={}){
   const url=`${API_BASE}${path}`;
-  const hdrs={'Content-Type':'application/json',...opts.headers};
+  const hdrs={'Content-Type':'application/json','ngrok-skip-browser-warning':'1',...opts.headers};
   if(TokenStore.access) hdrs['Authorization']=`Bearer ${TokenStore.access}`;
   let r=await fetch(url,{...opts,headers:hdrs});
   if(r.status===401 && TokenStore.refresh){
@@ -32,7 +32,7 @@ const api={
   patch:(p,b)=>apiFetch(p,{method:'PATCH',body:JSON.stringify(b)}),
   delete:(p)=>apiFetch(p,{method:'DELETE'}),
   upload:(p,fd)=>{const h={};if(TokenStore.access)h['Authorization']=`Bearer ${TokenStore.access}`;return apiFetch(p,{method:'POST',body:fd,headers:h});},
-  download:async(p,fn)=>{const h={'Content-Type':'application/json'};if(TokenStore.access)h['Authorization']=`Bearer ${TokenStore.access}`;const r=await fetch(`${API_BASE}${p}`,{method:'GET',headers:h});if(!r.ok)throw new Error('Error al descargar');const b=await r.blob(),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=fn;a.click();URL.revokeObjectURL(u);}
+  download:async(p,fn)=>{const h={'Content-Type':'application/json','ngrok-skip-browser-warning':'1'};if(TokenStore.access)h['Authorization']=`Bearer ${TokenStore.access}`;const r=await fetch(`${API_BASE}${p}`,{method:'GET',headers:h});if(!r.ok)throw new Error('Error al descargar');const b=await r.blob(),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=fn;a.click();URL.revokeObjectURL(u);}
 };
 export {api,TokenStore,API_BASE};
 export default api;
