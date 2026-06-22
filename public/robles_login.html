@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Robles Edificios — Iniciar sesión</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bark:#3b1f0a;--bark-mid:#6b3a18;--bark-light:#a0622e;
+  --leaf:#2d5e1e;--leaf-mid:#4a8a30;--leaf-pale:#ddf0cc;
+  --gold:#b8872a;
+  --white:#fff;--off:#f8f6f3;--border:#ede8e0;
+  --text:#1a0e04;--text-mid:#5a3a20;--text-muted:#9a8272;
+  --red:#c04030;--red-bg:#fdf0ee;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'DM Sans',sans-serif;background:var(--off);min-height:100vh;display:flex;align-items:center;justify-content:center;}
+.page{display:grid;grid-template-columns:1fr 480px;min-height:100vh;width:100%;}
+.left{background:linear-gradient(160deg,var(--bark) 0%,var(--bark-mid) 60%,var(--leaf) 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px;position:relative;overflow:hidden;}
+.left::before{content:'';position:absolute;inset:0;background:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");}
+.brand-title{font-family:'Cormorant Garamond',serif;font-size:42px;font-weight:600;color:white;text-align:center;margin-bottom:12px;line-height:1.2;}
+.brand-sub{font-size:13px;color:rgba(255,255,255,.6);text-align:center;letter-spacing:.2em;text-transform:uppercase;}
+.features{margin-top:48px;display:flex;flex-direction:column;gap:16px;width:100%;max-width:320px;}
+.feature{display:flex;align-items:center;gap:14px;color:rgba(255,255,255,.8);font-size:13px;}
+.feat-ico{width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.feat-ico svg{width:18px;height:18px;fill:none;stroke:rgba(255,255,255,.8);stroke-width:1.5;stroke-linecap:round;}
+.right{background:var(--white);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 48px;}
+.login-box{width:100%;max-width:360px;}
+.login-logo{width:72px;height:72px;margin:0 auto 24px;display:block;}
+.login-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:600;color:var(--bark);text-align:center;margin-bottom:6px;}
+.login-sub{font-size:12px;color:var(--text-muted);text-align:center;margin-bottom:32px;}
+.fg{display:flex;flex-direction:column;gap:6px;margin-bottom:16px;}
+label{font-size:11px;font-weight:500;color:var(--text-mid);text-transform:uppercase;letter-spacing:.05em;}
+.input-wrap{position:relative;}
+input{width:100%;background:var(--off);border:1px solid var(--border);border-radius:10px;padding:11px 14px;font-size:13.5px;color:var(--text);font-family:'DM Sans',sans-serif;outline:none;transition:border .15s,background .15s;}
+input:focus{border-color:var(--leaf-mid);background:white;}
+input.error{border-color:var(--red);}
+.pass-toggle{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text-muted);}
+.pass-toggle svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;}
+.err-msg{font-size:11px;color:var(--red);margin-top:4px;display:none;}
+.err-msg.show{display:block;}
+.btn-login{width:100%;background:var(--bark);color:white;border:none;border-radius:10px;padding:13px;font-size:13.5px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;transition:background .15s;margin-top:8px;display:flex;align-items:center;justify-content:center;gap:8px;}
+.btn-login:hover{background:var(--bark-mid);}
+.btn-login:disabled{opacity:.65;cursor:not-allowed;}
+.btn-login .spinner{width:18px;height:18px;border:2px solid rgba(255,255,255,.4);border-top-color:white;border-radius:50%;animation:spin .7s linear infinite;display:none;}
+.btn-login.loading .spinner{display:block;}
+.btn-login.loading .btn-text{display:none;}
+.divider{display:flex;align-items:center;gap:12px;margin:20px 0;}
+.divider span{font-size:11px;color:var(--text-muted);}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border);}
+.demo-users{display:flex;flex-direction:column;gap:8px;}
+.demo-btn{background:var(--off);border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif;color:var(--text-mid);text-align:left;transition:background .15s;display:flex;justify-content:space-between;align-items:center;}
+.demo-btn:hover{background:var(--border);}
+.demo-rol{font-size:10px;font-weight:500;color:var(--leaf);background:var(--leaf-pale);padding:1px 7px;border-radius:20px;}
+.api-status{margin-top:24px;padding:10px 14px;border-radius:8px;font-size:11px;display:flex;align-items:center;gap:8px;border:1px solid var(--border);background:var(--off);}
+.api-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.api-dot.ok{background:var(--leaf);}
+.api-dot.err{background:var(--red);}
+.api-dot.checking{background:var(--gold);animation:pulse 1s infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@media(max-width:768px){.page{grid-template-columns:1fr;}.left{display:none;}.right{padding:32px 24px;}}
+</style>
+</head>
+<body>
+<div class="page">
+  <!-- Panel izquierdo -->
+  <div class="left">
+    <div class="brand-title">Robles<br>Edificios</div>
+    <div class="brand-sub">Sistema Integral de Gestión</div>
+    <div class="features">
+      <div class="feature"><div class="feat-ico"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div>4 proyectos activos en Cochabamba</div>
+      <div class="feature"><div class="feat-ico"><svg viewBox="0 0 24 24"><path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z"/><path d="M16 3H8a2 2 0 00-2 2v2h12V5a2 2 0 00-2-2z"/></svg></div>Ventas, cuotas y comisiones en tiempo real</div>
+      <div class="feature"><div class="feat-ico"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></div>Finanzas USD/Bs con tipo de cambio BCB</div>
+      <div class="feature"><div class="feat-ico"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div>52 empleados — planilla con AFP y RC-IVA</div>
+      <div class="feature"><div class="feat-ico"><svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>Alertas WhatsApp automáticas de pagos</div>
+    </div>
+  </div>
+
+  <!-- Panel derecho -->
+  <div class="right">
+    <div class="login-box">
+      <div style="width:72px;height:72px;margin:0 auto 20px;background:linear-gradient(135deg,var(--bark),var(--leaf));border-radius:18px;display:flex;align-items:center;justify-content:center;">
+        <svg style="width:38px;height:38px;fill:none;stroke:white;stroke-width:1.5;stroke-linecap:round" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      </div>
+      <div class="login-title">Bienvenido</div>
+      <div class="login-sub">Ingresa con tu cuenta de Robles Edificios</div>
+
+      <form id="loginForm" onsubmit="handleLogin(event)">
+        <div class="fg">
+          <label>Email</label>
+          <input type="email" id="email" placeholder="usuario@robles.com.bo" autocomplete="email" required>
+          <div class="err-msg" id="email-err"></div>
+        </div>
+        <div class="fg">
+          <label>Contraseña</label>
+          <div class="input-wrap">
+            <input type="password" id="password" placeholder="••••••••" autocomplete="current-password" required>
+            <button type="button" class="pass-toggle" onclick="togglePass()">
+              <svg id="eye-icon" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+          <div class="err-msg" id="pass-err"></div>
+        </div>
+        <div class="err-msg show" id="form-err" style="margin-bottom:8px;padding:10px 12px;background:var(--red-bg);border-radius:8px;border:1px solid rgba(192,64,48,.2)"></div>
+        <button type="submit" class="btn-login" id="loginBtn">
+          <div class="spinner"></div>
+          <span class="btn-text">Iniciar sesión</span>
+        </button>
+      </form>
+
+      <div class="divider"><span>Cuentas de demostración</span></div>
+      <div class="demo-users">
+        <button class="demo-btn" onclick="fillDemo('gerencia@robles.com.bo')">
+          <span>gerencia@robles.com.bo</span>
+          <span class="demo-rol">ADMIN</span>
+        </button>
+        <button class="demo-btn" onclick="fillDemo('finanzas@robles.com.bo')">
+          <span>finanzas@robles.com.bo</span>
+          <span class="demo-rol" style="color:var(--gold);background:var(--gold-bg)">FINANZAS</span>
+        </button>
+        <button class="demo-btn" onclick="fillDemo('luis.mamani@robles.com.bo')">
+          <span>luis.mamani@robles.com.bo</span>
+          <span class="demo-rol" style="color:var(--blue);background:var(--blue-bg)">COMERCIAL</span>
+        </button>
+      </div>
+
+      <div class="api-status" id="apiStatus">
+        <div class="api-dot checking" id="apiDot"></div>
+        <span id="apiTxt">Verificando conexión al servidor...</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="./config.js"></script>
+<script>
+const API = (window.VITE_API_URL || 'http://localhost:3000') + '/api';
+const DEMO_PASS = 'Robles2026!';
+
+// Verificar conexión al API
+async function checkApi() {
+  try {
+    const r = await fetch(`${API}/health`);
+    const d = await r.json();
+    document.getElementById('apiDot').className = 'api-dot ok';
+    document.getElementById('apiTxt').textContent = `Servidor conectado — ${d.sistema}`;
+  } catch {
+    document.getElementById('apiDot').className = 'api-dot err';
+    document.getElementById('apiTxt').textContent = 'Sin conexión al servidor. Verifica que el backend esté corriendo.';
+  }
+}
+checkApi();
+
+function fillDemo(email) {
+  document.getElementById('email').value    = email;
+  document.getElementById('password').value = DEMO_PASS;
+  document.getElementById('form-err').style.display = 'none';
+}
+
+function togglePass() {
+  const inp = document.getElementById('password');
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+}
+
+async function handleLogin(e) {
+  e.preventDefault();
+  const email    = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  const btn      = document.getElementById('loginBtn');
+  const formErr  = document.getElementById('form-err');
+
+  formErr.style.display = 'none';
+  btn.classList.add('loading');
+  btn.disabled = true;
+
+  try {
+    const res = await fetch(`${API}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      formErr.textContent = data.error || 'Credenciales incorrectas';
+      formErr.style.display = 'block';
+      return;
+    }
+
+    // Guardar tokens y usuario
+    localStorage.setItem('robles_access',  data.accessToken);
+    localStorage.setItem('robles_refresh', data.refreshToken);
+    localStorage.setItem('robles_user',    JSON.stringify(data.usuario));
+
+    // Redirigir al sistema
+    window.location.href = './index.html';
+
+  } catch (err) {
+    formErr.textContent = 'Error de conexión. ¿Está el servidor corriendo en ' + API + '?';
+    formErr.style.display = 'block';
+  } finally {
+    btn.classList.remove('loading');
+    btn.disabled = false;
+  }
+}
+</script>
+</body>
+</html>
