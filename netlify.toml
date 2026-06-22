@@ -1,8 +1,17 @@
 [build]
-  command   = "echo 'No build needed'"
+  command   = "echo 'Static site - no build needed'"
   publish   = "public"
+  ignore    = "false"
+
+[build.environment]
+  NODE_VERSION = "20"
 
 [[headers]]
   for = "/*.js"
+  [headers.values]
+    Content-Type = "application/javascript"
+
+[[headers]]
+  for = "/src/**/*.js"
   [headers.values]
     Content-Type = "application/javascript"
