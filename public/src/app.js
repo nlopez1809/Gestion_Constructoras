@@ -146,18 +146,36 @@ document.getElementById('btn-global-action').addEventListener('click', async () 
         <div style="${fgStyle}"><label style="${labelStyle}">Cliente</label><select style="${inputStyle}" name="clienteId" required><option value="">Seleccionar...</option>${clientes.map(c=>`<option value="${c.id}">${c.nombre} ${c.apellido}</option>`).join('')}</select></div>
         <div style="${fgStyle}"><label style="${labelStyle}">Proyecto</label><select style="${inputStyle}" name="proyectoId" id="selProyVenta" required><option value="">Seleccionar...</option>${proyectos.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join('')}</select></div>
         <div style="${fgStyle}"><label style="${labelStyle}">Unidad</label><select style="${inputStyle}" name="unidadId" id="selUnidadVenta" required><option value="">Primero seleccione proyecto</option></select></div>
+        <div id="unidadPreview"></div>
         <div style="${rowStyle}">
-          <div style="${fgStyle}"><label style="${labelStyle}">Precio final USD</label><input style="${inputStyle}" name="precioFinal" type="number" step="0.01" required></div>
+          <div style="${fgStyle}"><label style="${labelStyle}">Precio final USD</label><input style="${inputStyle}" name="precioFinal" id="precioVenta" type="number" step="0.01" required></div>
           <div style="${fgStyle}"><label style="${labelStyle}">Total cuotas</label><input style="${inputStyle}" name="totalCuotas" type="number" value="36" required></div>
         </div>
         <div style="${fgStyle}"><label style="${labelStyle}">Fecha de venta</label><input style="${inputStyle}" name="fechaVenta" type="date" value="${new Date().toISOString().slice(0,10)}" required></div>
         <button type="submit" style="${btnStyle}">Registrar venta</button>
       </form>`;
+      let _unisVenta = [];
       document.getElementById('selProyVenta').onchange = async (ev) => {
         const sel = document.getElementById('selUnidadVenta');
-        if (!ev.target.value) { sel.innerHTML = '<option value="">Primero seleccione proyecto</option>'; return; }
-        const unis = await unidadesApi.list({ proyectoId: ev.target.value, estado: 'DISPONIBLE' });
-        sel.innerHTML = `<option value="">Seleccionar...</option>${(unis||[]).map(u=>`<option value="${u.id}">${u.codigo} — ${u.tipo} — ${u.m2}m² — $${u.precioBase}</option>`).join('')}`;
+        document.getElementById('unidadPreview').innerHTML = '';
+        if (!ev.target.value) { sel.innerHTML = '<option value="">Primero seleccione proyecto</option>'; _unisVenta=[]; return; }
+        _unisVenta = await unidadesApi.list({ proyectoId: ev.target.value, estado: 'DISPONIBLE' });
+        sel.innerHTML = `<option value="">Seleccionar...</option>${(_unisVenta||[]).map(u=>`<option value="${u.id}">${u.codigo} — ${u.tipo.replace('_',' ')} — ${u.m2}m² — $${u.precioBase}</option>`).join('')}`;
+        if (!_unisVenta.length) sel.innerHTML = '<option value="">Sin unidades disponibles</option>';
+      };
+      document.getElementById('selUnidadVenta').onchange = (ev) => {
+        const u = _unisVenta.find(x => x.id === ev.target.value);
+        const prev = document.getElementById('unidadPreview');
+        if (!u) { prev.innerHTML = ''; return; }
+        document.getElementById('precioVenta').value = u.precioBase;
+        prev.innerHTML = `<div style="background:#e8f5e1;border:2px solid #4a8a30;border-radius:10px;padding:12px;margin-bottom:12px;display:flex;align-items:center;gap:12px">
+          <span style="font-size:22px">🏢</span>
+          <div style="flex:1">
+            <div style="font-weight:600;color:#2d5a1e;font-size:14px">${u.codigo} — ${u.tipo.replace('_',' ')}</div>
+            <div style="font-size:11px;color:#5a7a4a">Piso ${u.piso} · ${u.m2} m² · Precio base: $${u.precioBase.toLocaleString()}</div>
+          </div>
+          <span style="background:#4a8a30;color:white;font-size:10px;padding:3px 10px;border-radius:12px;font-weight:600">DISPONIBLE</span>
+        </div>`;
       };
       document.getElementById('frmGlobal').onsubmit = async (e) => {
         e.preventDefault();
