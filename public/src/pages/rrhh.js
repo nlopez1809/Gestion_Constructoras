@@ -103,6 +103,68 @@ async function renderEmpleados(el) {
         </table></div>
       </div>
     `;
+
+    document.getElementById('btnNuevoEmp').addEventListener('click', async () => {
+      const modal = document.getElementById('globalModal');
+      const title = document.getElementById('modal-title');
+      const body  = document.getElementById('modal-body');
+      if (!modal || !body) return;
+
+      const { proyectosApi } = await import('../api/index.js');
+      const proyectos = await proyectosApi.list();
+
+      const is = 'width:100%;background:var(--off);border:1px solid var(--border);border-radius:8px;padding:9px 12px;font-size:13px;font-family:"DM Sans",sans-serif;color:var(--text);outline:none;';
+      const ls = 'font-size:10px;font-weight:500;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;display:block;';
+      const fg = 'margin-bottom:12px;';
+      const rw = 'display:grid;grid-template-columns:1fr 1fr;gap:12px;';
+      const bs = 'width:100%;background:var(--bark);color:white;border:none;border-radius:10px;padding:12px;font-size:13px;font-weight:500;cursor:pointer;font-family:"DM Sans",sans-serif;margin-top:8px;';
+
+      title.textContent = 'Nuevo empleado';
+      body.innerHTML = `<form id="frmEmp">
+        <div style="${rw}">
+          <div style="${fg}"><label style="${ls}">Nombre</label><input style="${is}" name="nombre" required></div>
+          <div style="${fg}"><label style="${ls}">Apellido</label><input style="${is}" name="apellido" required></div>
+        </div>
+        <div style="${rw}">
+          <div style="${fg}"><label style="${ls}">CI</label><input style="${is}" name="ci" required></div>
+          <div style="${fg}"><label style="${ls}">Cargo</label><input style="${is}" name="cargo" placeholder="Albañil, Electricista..." required></div>
+        </div>
+        <div style="${rw}">
+          <div style="${fg}"><label style="${ls}">Especialidad</label><input style="${is}" name="especialidad" placeholder="Estructura, Acabados..."></div>
+          <div style="${fg}"><label style="${ls}">Teléfono</label><input style="${is}" name="telefono" placeholder="+591 70012345"></div>
+        </div>
+        <div style="${fg}"><label style="${ls}">Email</label><input style="${is}" name="email" type="email"></div>
+        <div style="${rw}">
+          <div style="${fg}"><label style="${ls}">Salario base Bs</label><input style="${is}" name="salarioBase" type="number" step="0.01" required></div>
+          <div style="${fg}"><label style="${ls}">Tipo contrato</label><select style="${is}" name="tipoContrato"><option value="POR_OBRA">Por obra</option><option value="A_PLAZO_FIJO">A plazo fijo</option><option value="INDEFINIDO">Indefinido</option></select></div>
+        </div>
+        <div style="${rw}">
+          <div style="${fg}"><label style="${ls}">Fecha ingreso</label><input style="${is}" name="fechaIngreso" type="date" value="${new Date().toISOString().slice(0,10)}" required></div>
+          <div style="${fg}"><label style="${ls}">Proyecto</label><select style="${is}" name="proyectoId"><option value="">Sin asignar</option>${proyectos.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join('')}</select></div>
+        </div>
+        <button type="submit" style="${bs}">Crear empleado</button>
+      </form>`;
+
+      document.getElementById('frmEmp').onsubmit = async (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        try {
+          showLoading('Creando empleado...');
+          await empleadosApi.create({
+            nombre: fd.get('nombre'), apellido: fd.get('apellido'), ci: fd.get('ci'),
+            cargo: fd.get('cargo'), especialidad: fd.get('especialidad')||undefined,
+            telefono: fd.get('telefono')||undefined, email: fd.get('email')||undefined,
+            salarioBase: +fd.get('salarioBase'), tipoContrato: fd.get('tipoContrato'),
+            fechaIngreso: fd.get('fechaIngreso'), proyectoId: fd.get('proyectoId')||undefined
+          });
+          hideLoading(); toast('Empleado creado', 'ok');
+          modal.classList.remove('open');
+          renderEmpleados(el);
+        } catch(err) { hideLoading(); toast('Error: '+err.message, 'err'); }
+      };
+      modal.classList.add('open');
+    });
+
   } catch(err) { hideLoading(); toast('Error: '+err.message,'err'); }
 }
 

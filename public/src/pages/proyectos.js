@@ -182,6 +182,57 @@ function renderEtapasProy(el, proyectos) {
       toast('Avance actualizado', 'ok');
     } catch (err) { toast('Error: ' + err.message, 'err'); }
   };
+
+  document.getElementById('btnNuevaEtapa').addEventListener('click', () => {
+    const proyId = sel.value;
+    const modal = document.getElementById('globalModal');
+    const title = document.getElementById('modal-title');
+    const body  = document.getElementById('modal-body');
+    if (!modal || !body) return;
+
+    const is = 'width:100%;background:var(--off);border:1px solid var(--border);border-radius:8px;padding:9px 12px;font-size:13px;font-family:"DM Sans",sans-serif;color:var(--text);outline:none;';
+    const ls = 'font-size:10px;font-weight:500;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;display:block;';
+    const fg = 'margin-bottom:12px;';
+    const rw = 'display:grid;grid-template-columns:1fr 1fr;gap:12px;';
+    const bs = 'width:100%;background:var(--bark);color:white;border:none;border-radius:10px;padding:12px;font-size:13px;font-weight:500;cursor:pointer;font-family:"DM Sans",sans-serif;margin-top:8px;';
+
+    title.textContent = 'Nueva etapa de obra';
+    body.innerHTML = `<form id="frmEtapa">
+      <div style="${fg}"><label style="${ls}">Nombre de la etapa</label><input style="${is}" name="nombre" placeholder="Excavación, Estructura, Acabados..." required></div>
+      <div style="${rw}">
+        <div style="${fg}"><label style="${ls}">Orden</label><input style="${is}" name="orden" type="number" min="1" value="1" required></div>
+        <div style="${fg}"><label style="${ls}">Avance inicial %</label><input style="${is}" name="avancePct" type="number" min="0" max="100" value="0"></div>
+      </div>
+      <div style="${rw}">
+        <div style="${fg}"><label style="${ls}">Fecha inicio</label><input style="${is}" name="fechaInicio" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+        <div style="${fg}"><label style="${ls}">Fecha fin (estimada)</label><input style="${is}" name="fechaFin" type="date"></div>
+      </div>
+      <div style="${fg}"><label style="${ls}">Estado</label><select style="${is}" name="estado"><option value="PENDIENTE">Pendiente</option><option value="EN_CURSO">En curso</option><option value="COMPLETADA">Completada</option></select></div>
+      <button type="submit" style="${bs}">Crear etapa</button>
+    </form>`;
+
+    document.getElementById('frmEtapa').onsubmit = async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      try {
+        showLoading('Creando etapa...');
+        await proyectosApi.crearEtapa(proyId, {
+          nombre: fd.get('nombre'),
+          orden: +fd.get('orden'),
+          avancePct: +fd.get('avancePct'),
+          estado: fd.get('estado'),
+          fechaInicio: fd.get('fechaInicio') || undefined,
+          fechaFin: fd.get('fechaFin') || undefined
+        });
+        hideLoading();
+        toast('Etapa creada', 'ok');
+        modal.classList.remove('open');
+        cargar();
+      } catch (err) { hideLoading(); toast('Error: ' + err.message, 'err'); }
+    };
+    modal.classList.add('open');
+  });
+
   cargar();
 }
 
