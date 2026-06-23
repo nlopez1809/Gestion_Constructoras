@@ -41,7 +41,7 @@ function renderResumenProy(el, proyectos) {
   el.innerHTML = `
     <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:13px;margin-top:20px">
       ${proyectos.map(p => `
-        <div class="panel" style="cursor:pointer" onclick="">
+        <div class="panel proy-card" style="cursor:pointer" data-proy-id="${p.id}">
           <div style="height:5px;background:linear-gradient(90deg,${colorProy(p.estado)});border-radius:0"></div>
           <div style="padding:16px 20px">
             <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
@@ -78,14 +78,34 @@ function renderResumenProy(el, proyectos) {
       `).join('')}
     </div>
   `;
+
+  el.querySelectorAll('.proy-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const id = card.dataset.proyId;
+      const tabs = document.getElementById('proy-tabs');
+      tabs.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      const detTab = tabs.querySelector('[data-tab="detalle"]');
+      detTab.classList.add('active');
+      renderDetalleProyById(el, id);
+    });
+  });
 }
 
-function renderDetalleProy(el, proyectos) {
+async function renderDetalleProyById(el, proyId) {
+  try {
+    showLoading();
+    const proyectos = await proyectosApi.list();
+    hideLoading();
+    renderDetalleProy(el, proyectos, proyId);
+  } catch (err) { hideLoading(); toast('Error: ' + err.message, 'err'); }
+}
+
+function renderDetalleProy(el, proyectos, selectedId) {
   el.innerHTML = `
     <div style="margin-top:20px">
       <div class="search-row">
         <select class="sel" id="sel-proy-det">
-          ${proyectos.map(p => `<option value="${p.id}">${p.nombre}</option>`).join('')}
+          ${proyectos.map(p => `<option value="${p.id}"${p.id===selectedId?' selected':''}>${p.nombre}</option>`).join('')}
         </select>
       </div>
       <div id="det-content"></div>
