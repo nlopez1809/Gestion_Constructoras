@@ -142,10 +142,12 @@ document.getElementById('btn-global-action').addEventListener('click', async () 
     ventas: async () => {
       title.textContent = 'Nueva venta';
       const { authApi: aApi } = await import('./api/index.js');
-      const [clientes, proyectos, usuarios] = await Promise.all([clientesApi.list(), proyectosApi.list(), aApi.usuarios()]);
+      let clientes = [], proyectos = [], usuarios = [];
+      try { [clientes, proyectos, usuarios] = await Promise.all([clientesApi.list(), proyectosApi.list(), aApi.usuarios().catch(()=>[])]); } catch(err) { toast('Error cargando datos: '+err.message, 'err'); return; }
+      clientes = Array.isArray(clientes) ? clientes : (clientes.clientes || []);
       body.innerHTML = `<form id="frmGlobal">
         <div style="${fgStyle}"><label style="${labelStyle}">Cliente</label><div style="display:flex;gap:8px"><select style="${inputStyle};flex:1" name="clienteId" id="selClienteVenta" required><option value="">Seleccionar...</option>${clientes.map(c=>`<option value="${c.id}">${c.nombre} ${c.apellido} — ${c.ci||''}</option>`).join('')}</select><button type="button" id="btnAddClienteRapido" style="min-width:36px;height:38px;background:var(--leaf);color:white;border:none;border-radius:8px;font-size:18px;cursor:pointer" title="Nuevo cliente">+</button></div></div>
-        <div style="${fgStyle}"><label style="${labelStyle}">Proyecto</label><select style="${inputStyle}" name="proyectoId" id="selProyVenta" required><option value="">Seleccionar...</option>${proyectos.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join('')}</select></div>
+        <div style="${fgStyle}"><label style="${labelStyle}">Proyecto</label><select style="${inputStyle}" id="selProyVenta" required><option value="">Seleccionar...</option>${proyectos.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join('')}</select></div>
         <div style="${fgStyle}"><label style="${labelStyle}">Unidad</label><select style="${inputStyle}" name="unidadId" id="selUnidadVenta" required><option value="">Primero seleccione proyecto</option></select></div>
         <div id="unidadPreview"></div>
         <div style="${rowStyle}">

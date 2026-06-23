@@ -187,6 +187,19 @@ router.post('/', auth, roles('ADMIN', 'GERENCIA', 'COMERCIAL'), async (req, res)
             vencimiento: new Date(c.vencimiento)
           }))
         });
+      } else if (totalCuotas && totalCuotas > 0) {
+        const montoCuota = +(precioFinal / totalCuotas).toFixed(2);
+        const cuotasData = [];
+        for (let i = 0; i < totalCuotas; i++) {
+          const venc = dayjs(fechaVenta).add(i + 1, 'month').toDate();
+          cuotasData.push({
+            ventaId: venta.id,
+            numero: i + 1,
+            monto: i === totalCuotas - 1 ? +(precioFinal - montoCuota * (totalCuotas - 1)).toFixed(2) : montoCuota,
+            vencimiento: venc
+          });
+        }
+        await tx.cuota.createMany({ data: cuotasData });
       }
 
       // Crear comisión automática
