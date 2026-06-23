@@ -1,6 +1,6 @@
 // src/pages/proyectos.js — Módulo Proyectos conectado al backend
 
-import { proyectosApi } from '../api/index.js';
+import { proyectosApi, unidadesApi } from '../api/index.js';
 import { fmt, estadoPill, toast, showLoading, hideLoading } from '../utils/ui.js';
 
 export async function initProyectos(container) {
@@ -113,7 +113,12 @@ function renderDetalleProy(el, proyectos, selectedId) {
   `;
   const sel = document.getElementById('sel-proy-det');
   const cargar = async () => {
-    const det = await proyectosApi.get(sel.value);
+    const [det, unidades] = await Promise.all([
+      proyectosApi.get(sel.value),
+      unidadesApi.list({ proyectoId: sel.value })
+    ]);
+    const tipoLabel = { DEPARTAMENTO:'Departamento', PENTHOUSE:'Penthouse', LOCAL_COMERCIAL:'Local comercial', ESTACIONAMIENTO:'Estacionamiento', OFICINA:'Oficina' };
+    const estadoColor = { DISPONIBLE:'var(--leaf)', RESERVADO:'var(--gold)', VENDIDO:'var(--blue)', NO_DISPONIBLE:'var(--text-muted)' };
     document.getElementById('det-content').innerHTML = `
       <div class="panel">
         <div class="ph"><div><div class="pt">${det.nombre}</div><div class="ps">${det.ubicacion} · ${det.ciudad}</div></div></div>
@@ -145,7 +150,90 @@ function renderDetalleProy(el, proyectos, selectedId) {
           </div>
         </div>
       </div>
+
+      <div class="panel" style="margin-top:14px">
+        <div class="ph">
+          <div><div class="pt">Unidades</div><div class="ps">Departamentos, locales comerciales y oficinas</div></div>
+          <button class="btn-pri" id="btnNuevaUnidad" style="height:36px">
+            <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Nueva unidad
+          </button>
+        </div>
+        <div class="tw">
+          <table>
+            <thead><tr><th>Código</th><th>Tipo</th><th class="r">Piso</th><th class="r">m²</th><th class="r">Precio USD</th><th>Estado</th></tr></thead>
+            <tbody>
+              ${unidades.length === 0
+                ? '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-muted)">Sin unidades registradas</td></tr>'
+                : unidades.map(u => `
+                  <tr>
+                    <td><strong>${u.codigo}</strong></td>
+                    <td>${tipoLabel[u.tipo]||u.tipo}</td>
+                    <td class="r">${u.piso}</td>
+                    <td class="r">${u.m2}</td>
+                    <td class="r">${fmt.usd(u.precioBase)}</td>
+                    <td><span style="font-size:11px;font-weight:500;color:${estadoColor[u.estado]||'var(--text-mid)'}">${u.estado}</span></td>
+                  </tr>
+                `).join('')
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
     `;
+
+    document.getElementById('btnNuevaUnidad').addEventListener('click', () => {
+      const modal = document.getElementById('globalModal');
+      const title = document.getElementById('modal-title');
+      const body  = document.getElementById('modal-body');
+      if (!modal || !body) return;
+
+      const is = 'width:100%;background:var(--off);border:1px solid var(--border);border-radius:8px;padding:9px 12px;font-size:13px;font-family:"DM Sans",sans-serif;color:var(--text);outline:none;';
+      const ls = 'font-size:10px;font-weight:500;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;display:block;';
+      const fg = 'margin-bottom:12px;';
+      const rw = 'display:grid;grid-template-columns:1fr 1fr;gap:12px;';
+      const bs = 'width:100%;background:var(--bark);color:white;border:none;border-radius:10px;padding:12px;font-size:13px;font-weight:500;cursor:pointer;font-family:"DM Sans",sans-serif;margin-top:8px;';
+
+      title.textContent = 'Nueva unidad';
+      body.innerHTML = `<form id="frmUnidad">
+        <div style="${rw}">
+          <div style="${fg}"><label style="${ls}">Código</label><input style="${is}" name="codigo" placeholder="Ej: 3B, PH1, LC2" required></div>
+          <div style="${fg}"><label style="${ls}">Tipo</label><select style="${is}" name="tipo">
+            <option value="DEPARTAMENTO">Departamento</option>
+            <option value="LOCAL_COMERCIAL">Local comercial</option>
+            <option value="OFICINA">Oficina</option>
+            <option value="PENTHOUSE">Penthouse</option>
+            <option value="ESTACIONAMIENTO">Estacionamiento</option>
+          </select></div>
+        </div>
+        <div style="${rw}">
+          <div style="${fg}"><label style="${ls}">Piso</label><input style="${is}" name="piso" type="number" min="0" value="1" required></div>
+          <div style="${fg}"><label style="${ls}">Metros cuadrados</label><input style="${is}" name="m2" type="number" step="0.01" min="0" required></div>
+        </div>
+        <div style="${fg}"><label style="${ls}">Precio base (USD)</label><input style="${is}" name="precioBase" type="number" step="0.01" min="0" required></div>
+        <button type="submit" style="${bs}">Crear unidad</button>
+      </form>`;
+
+      document.getElementById('frmUnidad').onsubmit = async (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        try {
+          showLoading('Creando unidad...');
+          await unidadesApi.create({
+            proyectoId: sel.value,
+            codigo: fd.get('codigo'),
+            tipo: fd.get('tipo'),
+            piso: +fd.get('piso'),
+            m2: +fd.get('m2'),
+            precioBase: +fd.get('precioBase')
+          });
+          hideLoading();
+          toast('Unidad creada', 'ok');
+          modal.classList.remove('open');
+          cargar();
+        } catch (err) { hideLoading(); toast('Error: ' + err.message, 'err'); }
+      };
+      modal.classList.add('open');
+    });
   };
   sel.addEventListener('change', cargar);
   cargar();
