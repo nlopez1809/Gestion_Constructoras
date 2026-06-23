@@ -213,7 +213,8 @@ async function renderClientes(el) {
 
   const cargar = async (q = '') => {
     try {
-      const data = await clientesApi.list({ q, page: _pagina, limit: 15 });
+      const raw = await clientesApi.list({ q });
+      const clientes = Array.isArray(raw) ? raw : (raw.clientes || []);
       renderTable(
         document.getElementById('tablaClientes'),
         [
@@ -224,10 +225,10 @@ async function renderClientes(el) {
           { header: 'Ventas',   render: c => c.ventas?.length || 0 },
           { header: '',         render: c => `<button onclick="verCliente('${c.id}')" class="plink">Ver</button>` },
         ],
-        data.clientes,
+        clientes,
         'Sin clientes registrados'
       );
-      renderPagination(document.getElementById('paginaClientes'), data.total, _pagina, 15, p => { _pagina=p; cargar(document.getElementById('buscarCliente').value); });
+      renderPagination(document.getElementById('paginaClientes'), clientes.length, _pagina, 15, p => { _pagina=p; cargar(document.getElementById('buscarCliente').value); });
     } catch (err) { toast('Error: ' + err.message, 'err'); }
   };
 

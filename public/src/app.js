@@ -143,7 +143,7 @@ document.getElementById('btn-global-action').addEventListener('click', async () 
       title.textContent = 'Nueva venta';
       const [clientes, proyectos] = await Promise.all([clientesApi.list(), proyectosApi.list()]);
       body.innerHTML = `<form id="frmGlobal">
-        <div style="${fgStyle}"><label style="${labelStyle}">Cliente</label><select style="${inputStyle}" name="clienteId" required><option value="">Seleccionar...</option>${clientes.map(c=>`<option value="${c.id}">${c.nombre} ${c.apellido}</option>`).join('')}</select></div>
+        <div style="${fgStyle}"><label style="${labelStyle}">Cliente</label><div style="display:flex;gap:8px"><select style="${inputStyle};flex:1" name="clienteId" id="selClienteVenta" required><option value="">Seleccionar...</option>${clientes.map(c=>`<option value="${c.id}">${c.nombre} ${c.apellido} — ${c.ci||''}</option>`).join('')}</select><button type="button" id="btnAddClienteRapido" style="min-width:36px;height:38px;background:var(--leaf);color:white;border:none;border-radius:8px;font-size:18px;cursor:pointer" title="Nuevo cliente">+</button></div></div>
         <div style="${fgStyle}"><label style="${labelStyle}">Proyecto</label><select style="${inputStyle}" name="proyectoId" id="selProyVenta" required><option value="">Seleccionar...</option>${proyectos.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join('')}</select></div>
         <div style="${fgStyle}"><label style="${labelStyle}">Unidad</label><select style="${inputStyle}" name="unidadId" id="selUnidadVenta" required><option value="">Primero seleccione proyecto</option></select></div>
         <div id="unidadPreview"></div>
@@ -177,6 +177,52 @@ document.getElementById('btn-global-action').addEventListener('click', async () 
           <span style="background:#4a8a30;color:white;font-size:10px;padding:3px 10px;border-radius:12px;font-weight:600">DISPONIBLE</span>
         </div>`;
       };
+      document.getElementById('btnAddClienteRapido').addEventListener('click', () => {
+        const is = inputStyle, ls = labelStyle, fg = fgStyle, rw = rowStyle, bs = btnStyle;
+        const subModal = document.createElement('div');
+        subModal.style = 'position:absolute;inset:0;background:rgba(26,14,4,.3);z-index:10;display:flex;align-items:center;justify-content:center;';
+        subModal.innerHTML = `<div style="background:white;border-radius:14px;padding:24px;max-width:420px;width:100%;box-shadow:0 8px 30px rgba(0,0,0,.15)">
+          <div style="font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:600;color:var(--bark);margin-bottom:16px">Nuevo cliente</div>
+          <form id="frmClienteRapido">
+            <div style="${rw}">
+              <div style="${fg}"><label style="${ls}">Nombre</label><input style="${is}" name="nombre" required></div>
+              <div style="${fg}"><label style="${ls}">Apellido</label><input style="${is}" name="apellido" required></div>
+            </div>
+            <div style="${rw}">
+              <div style="${fg}"><label style="${ls}">CI</label><input style="${is}" name="ci" required></div>
+              <div style="${fg}"><label style="${ls}">Teléfono</label><input style="${is}" name="telefono" placeholder="+591 7..."></div>
+            </div>
+            <div style="${fg}"><label style="${ls}">Email</label><input style="${is}" name="email" type="email"></div>
+            <div style="${rw}">
+              <div style="${fg}"><label style="${ls}">Ciudad</label><input style="${is}" name="ciudad" value="Cochabamba"></div>
+              <div style="${fg}"><label style="${ls}">Dirección</label><input style="${is}" name="direccion"></div>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:12px">
+              <button type="button" id="btnCancelClienteR" style="flex:1;background:var(--off);border:1px solid var(--border);border-radius:10px;padding:12px;font-size:13px;cursor:pointer;font-family:'DM Sans',sans-serif;">Cancelar</button>
+              <button type="submit" style="flex:1;${bs}">Crear cliente</button>
+            </div>
+          </form>
+        </div>`;
+        body.style.position = 'relative';
+        body.appendChild(subModal);
+        document.getElementById('btnCancelClienteR').onclick = () => subModal.remove();
+        document.getElementById('frmClienteRapido').onsubmit = async (ev) => {
+          ev.preventDefault();
+          const fd = new FormData(ev.target);
+          const data = { nombre: fd.get('nombre'), apellido: fd.get('apellido'), ci: fd.get('ci'), telefono: fd.get('telefono')||undefined, email: fd.get('email')||undefined, ciudad: fd.get('ciudad')||undefined, direccion: fd.get('direccion')||undefined };
+          try {
+            showLoading('Creando cliente...');
+            const nuevo = await clientesApi.create(data);
+            hideLoading(); toast('Cliente creado', 'ok');
+            subModal.remove();
+            const selC = document.getElementById('selClienteVenta');
+            const opt = document.createElement('option');
+            opt.value = nuevo.id; opt.textContent = `${nuevo.nombre} ${nuevo.apellido} — ${nuevo.ci||''}`;
+            opt.selected = true;
+            selC.appendChild(opt);
+          } catch(err) { hideLoading(); toast('Error: '+err.message, 'err'); }
+        };
+      });
       document.getElementById('frmGlobal').onsubmit = async (e) => {
         e.preventDefault();
         const fd = new FormData(e.target);
