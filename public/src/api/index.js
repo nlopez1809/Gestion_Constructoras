@@ -1,5 +1,5 @@
 import api from './client.js';
-export const authApi={ login:(e,p)=>api.post('/auth/login',{email:e,password:p}), me:()=>api.get('/auth/me'), register:d=>api.post('/auth/register',d), changePassword:(a,n)=>api.put('/auth/password',{actual:a,nueva:n}) };
+export const authApi={ login:(e,p)=>api.post('/auth/login',{email:e,password:p}), me:()=>api.get('/auth/me'), register:d=>api.post('/auth/register',d), changePassword:(a,n)=>api.put('/auth/password',{actual:a,nueva:n}), usuarios:p=>api.get('/auth/usuarios',p) };
 export const dashboardApi={ kpis:()=>api.get('/dashboard') };
 export const proyectosApi={ list:p=>api.get('/proyectos',p), get:id=>api.get(`/proyectos/${id}`), create:d=>api.post('/proyectos',d), update:(id,d)=>api.put(`/proyectos/${id}`,d), updateAvance:(id,pct)=>api.patch(`/proyectos/${id}/avance`,{avancePct:pct}), costos:id=>api.get(`/proyectos/${id}/costos`), etapas:id=>api.get(`/proyectos/${id}/etapas`), crearEtapa:(id,d)=>api.post(`/proyectos/${id}/etapas`,d), actualizarEtapa:(pid,eid,d)=>api.patch(`/proyectos/${pid}/etapas/${eid}`,d) };
 export const unidadesApi={ list:p=>api.get('/unidades',p), create:d=>api.post('/unidades',d), update:(id,d)=>api.put(`/unidades/${id}`,d), cambiarEstado:(id,e)=>api.patch(`/unidades/${id}/estado`,{estado:e}) };

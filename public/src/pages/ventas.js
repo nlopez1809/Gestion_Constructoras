@@ -378,6 +378,126 @@ function mostrarModalCliente(cliente = null) {
   });
 }
 
+// ── VER CLIENTE (global) ──
+window.verCliente = async function(clienteId) {
+  try {
+    showLoading('Cargando cliente...');
+    const c = await clientesApi.get(clienteId);
+    hideLoading();
+
+    const modal = document.createElement('div');
+    modal.className = 'modal-bg open';
+
+    const ventas = c.ventas || [];
+    const totalDeuda = ventas.reduce((s, v) => s + v.cuotas.filter(q => !q.pagado).reduce((a, q) => a + q.monto, 0), 0);
+    const totalPagado = ventas.reduce((s, v) => s + v.cuotas.filter(q => q.pagado).reduce((a, q) => a + q.monto, 0), 0);
+    const cuotasVencidas = ventas.reduce((s, v) => s + v.cuotas.filter(q => !q.pagado && new Date(q.vencimiento) < new Date()).length, 0);
+
+    modal.innerHTML = `
+      <div class="modal" style="max-width:700px">
+        <div class="mhd">
+          <div class="mtitle">${c.nombre} ${c.apellido}</div>
+          <button class="mclose" onclick="this.closest('.modal-bg').remove()">
+            <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="mbody">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px">
+            <div style="background:var(--off);border-radius:10px;padding:12px">
+              <div style="font-size:9.5px;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px">CI</div>
+              <div style="font-size:14px;font-weight:500;color:var(--bark)">${c.ci}</div>
+            </div>
+            <div style="background:var(--off);border-radius:10px;padding:12px">
+              <div style="font-size:9.5px;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px">Teléfono</div>
+              <div style="font-size:14px;font-weight:500;color:var(--bark)">${c.telefono || '—'}</div>
+            </div>
+            <div style="background:var(--off);border-radius:10px;padding:12px">
+              <div style="font-size:9.5px;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px">Email</div>
+              <div style="font-size:14px;font-weight:500;color:var(--bark)">${c.email || '—'}</div>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:20px">
+            <div style="background:#e8f5e1;border-radius:10px;padding:12px;text-align:center">
+              <div style="font-size:9.5px;color:#5a7a4a;text-transform:uppercase;margin-bottom:4px">Total pagado</div>
+              <div style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;color:#2d5a1e">${fmt.usd(totalPagado)}</div>
+            </div>
+            <div style="background:${totalDeuda > 0 ? '#fde8e8' : '#e8f5e1'};border-radius:10px;padding:12px;text-align:center">
+              <div style="font-size:9.5px;color:${totalDeuda > 0 ? '#8a2020' : '#5a7a4a'};text-transform:uppercase;margin-bottom:4px">Saldo pendiente</div>
+              <div style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;color:${totalDeuda > 0 ? '#c0392b' : '#2d5a1e'}">${fmt.usd(totalDeuda)}</div>
+            </div>
+            <div style="background:${cuotasVencidas > 0 ? '#fef9e7' : '#e8f5e1'};border-radius:10px;padding:12px;text-align:center">
+              <div style="font-size:9.5px;color:${cuotasVencidas > 0 ? '#8a6d15' : '#5a7a4a'};text-transform:uppercase;margin-bottom:4px">Cuotas vencidas</div>
+              <div style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;color:${cuotasVencidas > 0 ? '#d4a017' : '#2d5a1e'}">${cuotasVencidas}</div>
+            </div>
+          </div>
+
+          ${ventas.length === 0
+            ? '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:12.5px">Sin compras registradas</div>'
+            : ventas.map(v => {
+              const cuotasPagadas = v.cuotas.filter(q => q.pagado).length;
+              const cuotasPend = v.cuotas.filter(q => !q.pagado);
+              const saldo = cuotasPend.reduce((s, q) => s + q.monto, 0);
+              return `
+              <div style="border:1px solid var(--border);border-radius:12px;margin-bottom:12px;overflow:hidden">
+                <div style="background:var(--off);padding:12px 16px;display:flex;justify-content:space-between;align-items:center">
+                  <div>
+                    <div style="font-weight:600;color:var(--bark);font-size:13px">${v.unidad?.proyecto?.nombre || '—'} — ${v.unidad?.codigo || '—'}</div>
+                    <div style="font-size:11px;color:var(--text-muted)">Vendedor: ${v.vendedor?.nombre || '—'} · ${fmt.fecha(v.fechaVenta)} · ${v.numero}</div>
+                  </div>
+                  <div style="text-align:right">
+                    <div style="font-weight:600;color:var(--leaf);font-size:14px">${fmt.usd(v.precioFinal)}</div>
+                    <div style="font-size:11px;color:${saldo > 0 ? 'var(--red)' : 'var(--leaf)'}">${saldo > 0 ? 'Debe: ' + fmt.usd(saldo) : 'Pagado ✓'}</div>
+                  </div>
+                </div>
+                <div style="padding:8px 16px;max-height:200px;overflow-y:auto">
+                  <table style="width:100%;font-size:12px;border-collapse:collapse">
+                    <thead><tr style="border-bottom:1px solid var(--border)">
+                      <th style="text-align:left;padding:6px 4px;color:var(--text-muted);font-size:10px;text-transform:uppercase">#</th>
+                      <th style="text-align:left;padding:6px 4px;color:var(--text-muted);font-size:10px;text-transform:uppercase">Vencimiento</th>
+                      <th style="text-align:right;padding:6px 4px;color:var(--text-muted);font-size:10px;text-transform:uppercase">Monto</th>
+                      <th style="text-align:center;padding:6px 4px;color:var(--text-muted);font-size:10px;text-transform:uppercase">Estado</th>
+                      <th style="padding:6px 4px"></th>
+                    </tr></thead>
+                    <tbody>
+                      ${v.cuotas.map(q => {
+                        const vencida = !q.pagado && new Date(q.vencimiento) < new Date();
+                        return `<tr style="border-bottom:1px solid #f0ede8">
+                          <td style="padding:6px 4px">${q.numero}</td>
+                          <td style="padding:6px 4px">${fmt.fecha(q.vencimiento)}</td>
+                          <td style="padding:6px 4px;text-align:right;font-weight:500">${fmt.usd(q.monto)}</td>
+                          <td style="padding:6px 4px;text-align:center">
+                            ${q.pagado
+                              ? '<span style="background:#e8f5e1;color:#2d5a1e;font-size:10px;padding:2px 8px;border-radius:10px;font-weight:600">PAGADO</span>'
+                              : vencida
+                                ? '<span style="background:#fde8e8;color:#c0392b;font-size:10px;padding:2px 8px;border-radius:10px;font-weight:600">VENCIDA</span>'
+                                : '<span style="background:#fef9e7;color:#8a6d15;font-size:10px;padding:2px 8px;border-radius:10px;font-weight:600">PENDIENTE</span>'
+                            }
+                          </td>
+                          <td style="padding:6px 4px;text-align:right">${!q.pagado ? `<button onclick="pagarCuota('${q.id}');this.closest('.modal-bg').remove()" class="plink" style="font-size:11px">Pagar</button>` : `<span style="font-size:10px;color:var(--text-muted)">${q.fechaPago ? fmt.fecha(q.fechaPago) : ''}</span>`}</td>
+                        </tr>`;
+                      }).join('')}
+                    </tbody>
+                  </table>
+                </div>
+                <div style="background:#fafaf8;padding:8px 16px;display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted)">
+                  <span>Cuotas: ${cuotasPagadas}/${v.cuotas.length} pagadas</span>
+                  <span>Progreso: ${v.cuotas.length > 0 ? Math.round(cuotasPagadas / v.cuotas.length * 100) : 0}%</span>
+                </div>
+              </div>`;
+            }).join('')
+          }
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  } catch (err) {
+    hideLoading();
+    toast('Error al cargar cliente: ' + err.message, 'err');
+  }
+};
+
 // ── PAGAR CUOTA (global) ──
 window.pagarCuota = async function(cuotaId) {
   const ok = await confirm('¿Confirmar el pago de esta cuota?', 'Registrar pago');

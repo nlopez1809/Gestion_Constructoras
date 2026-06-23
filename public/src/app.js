@@ -141,7 +141,8 @@ document.getElementById('btn-global-action').addEventListener('click', async () 
 
     ventas: async () => {
       title.textContent = 'Nueva venta';
-      const [clientes, proyectos] = await Promise.all([clientesApi.list(), proyectosApi.list()]);
+      const { authApi: aApi } = await import('./api/index.js');
+      const [clientes, proyectos, usuarios] = await Promise.all([clientesApi.list(), proyectosApi.list(), aApi.usuarios()]);
       body.innerHTML = `<form id="frmGlobal">
         <div style="${fgStyle}"><label style="${labelStyle}">Cliente</label><div style="display:flex;gap:8px"><select style="${inputStyle};flex:1" name="clienteId" id="selClienteVenta" required><option value="">Seleccionar...</option>${clientes.map(c=>`<option value="${c.id}">${c.nombre} ${c.apellido} — ${c.ci||''}</option>`).join('')}</select><button type="button" id="btnAddClienteRapido" style="min-width:36px;height:38px;background:var(--leaf);color:white;border:none;border-radius:8px;font-size:18px;cursor:pointer" title="Nuevo cliente">+</button></div></div>
         <div style="${fgStyle}"><label style="${labelStyle}">Proyecto</label><select style="${inputStyle}" name="proyectoId" id="selProyVenta" required><option value="">Seleccionar...</option>${proyectos.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join('')}</select></div>
@@ -151,7 +152,13 @@ document.getElementById('btn-global-action').addEventListener('click', async () 
           <div style="${fgStyle}"><label style="${labelStyle}">Precio final USD</label><input style="${inputStyle}" name="precioFinal" id="precioVenta" type="number" step="0.01" required></div>
           <div style="${fgStyle}"><label style="${labelStyle}">Total cuotas</label><input style="${inputStyle}" name="totalCuotas" type="number" value="36" required></div>
         </div>
+        <div style="${rowStyle}">
+          <div style="${fgStyle}"><label style="${labelStyle}">Vendedor</label><select style="${inputStyle}" name="vendedorId" id="selVendedor" required><option value="">Seleccionar vendedor...</option>${usuarios.map(u=>`<option value="${u.id}">${u.nombre} (${u.rol})</option>`).join('')}</select></div>
+          <div style="${fgStyle}"><label style="${labelStyle}">Comisión %</label><input style="${inputStyle}" name="porcentajeComision" id="pctComision" type="number" step="0.1" min="0" max="100" value="3" placeholder="3"></div>
+        </div>
+        <div id="comisionPreview" style="margin-bottom:12px"></div>
         <div style="${fgStyle}"><label style="${labelStyle}">Fecha de venta</label><input style="${inputStyle}" name="fechaVenta" type="date" value="${new Date().toISOString().slice(0,10)}" required></div>
+        <div style="${fgStyle}"><label style="${labelStyle}">Observación</label><input style="${inputStyle}" name="observacion" placeholder="Notas adicionales (opcional)"></div>
         <button type="submit" style="${btnStyle}">Registrar venta</button>
       </form>`;
       let _unisVenta = [];
@@ -176,7 +183,25 @@ document.getElementById('btn-global-action').addEventListener('click', async () 
           </div>
           <span style="background:#4a8a30;color:white;font-size:10px;padding:3px 10px;border-radius:12px;font-weight:600">DISPONIBLE</span>
         </div>`;
+        actualizarComisionPreview();
       };
+      const actualizarComisionPreview = () => {
+        const precio = +document.getElementById('precioVenta').value || 0;
+        const pct = +document.getElementById('pctComision').value || 0;
+        const prev = document.getElementById('comisionPreview');
+        if (!precio || !pct) { prev.innerHTML = ''; return; }
+        const bruto = precio * pct / 100;
+        const impuesto = bruto * 0.13;
+        const neto = bruto - impuesto;
+        prev.innerHTML = `<div style="background:#fef9e7;border:1px solid #d4a017;border-radius:8px;padding:10px 14px;font-size:12px;color:#8a6d15;display:flex;gap:16px;align-items:center">
+          <span style="font-weight:600">Comisión estimada:</span>
+          <span>Bruto: $${bruto.toFixed(2)}</span>
+          <span>IT 13%: -$${impuesto.toFixed(2)}</span>
+          <span style="font-weight:700;color:#2d5a1e">Neto: $${neto.toFixed(2)}</span>
+        </div>`;
+      };
+      document.getElementById('precioVenta').addEventListener('input', actualizarComisionPreview);
+      document.getElementById('pctComision').addEventListener('input', actualizarComisionPreview);
       document.getElementById('btnAddClienteRapido').addEventListener('click', () => {
         const is = inputStyle, ls = labelStyle, fg = fgStyle, rw = rowStyle, bs = btnStyle;
         const subModal = document.createElement('div');
@@ -228,7 +253,7 @@ document.getElementById('btn-global-action').addEventListener('click', async () 
         const fd = new FormData(e.target);
         try {
           showLoading('Registrando venta...');
-          await ventasApi.create({ clienteId: fd.get('clienteId'), unidadId: fd.get('unidadId'), precioFinal: +fd.get('precioFinal'), totalCuotas: +fd.get('totalCuotas'), fechaVenta: fd.get('fechaVenta') });
+          await ventasApi.create({ clienteId: fd.get('clienteId'), unidadId: fd.get('unidadId'), precioFinal: +fd.get('precioFinal'), totalCuotas: +fd.get('totalCuotas'), fechaVenta: fd.get('fechaVenta'), vendedorId: fd.get('vendedorId'), porcentajeComision: +fd.get('porcentajeComision')||undefined, observacion: fd.get('observacion')||undefined });
           hideLoading(); toast('Venta registrada', 'ok'); modal.classList.remove('open'); window.navigateTo('ventas');
         } catch(err) { hideLoading(); toast('Error: '+err.message, 'err'); }
       };

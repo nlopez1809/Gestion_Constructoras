@@ -113,4 +113,21 @@ router.put('/password', auth,
   }
 );
 
+// GET /api/auth/usuarios — listar usuarios (para selectores de vendedor, etc.)
+router.get('/usuarios', auth, async (req, res) => {
+  try {
+    const { rol } = req.query;
+    const where = { activo: true };
+    if (rol) where.rol = rol;
+    const usuarios = await prisma.usuario.findMany({
+      where,
+      select: { id: true, nombre: true, email: true, rol: true },
+      orderBy: { nombre: 'asc' }
+    });
+    res.json(usuarios);
+  } catch {
+    res.status(500).json({ error: 'Error al obtener usuarios' });
+  }
+});
+
 module.exports = router;
