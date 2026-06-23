@@ -153,30 +153,22 @@ function renderDetalleProy(el, proyectos, selectedId) {
 
       <div class="panel" style="margin-top:14px">
         <div class="ph">
-          <div><div class="pt">Unidades</div><div class="ps">Departamentos, locales comerciales y oficinas</div></div>
-          <button class="btn-pri" id="btnNuevaUnidad" style="height:36px">
-            <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Nueva unidad
-          </button>
+          <div><div class="pt">Mapa de unidades</div><div class="ps">Departamentos, locales comerciales y oficinas</div></div>
+          <div style="display:flex;align-items:center;gap:14px">
+            <div style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:3px;background:#4a8a30;display:inline-block"></span><span style="font-size:10px;color:var(--text-muted)">Disponible</span></div>
+            <div style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:3px;background:#d4a017;display:inline-block"></span><span style="font-size:10px;color:var(--text-muted)">Reservado</span></div>
+            <div style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:3px;background:#c0392b;display:inline-block"></span><span style="font-size:10px;color:var(--text-muted)">Vendido</span></div>
+            <div style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:3px;background:#bbb;display:inline-block"></span><span style="font-size:10px;color:var(--text-muted)">No disponible</span></div>
+            <button class="btn-pri" id="btnNuevaUnidad" style="height:36px;margin-left:8px">
+              <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Nueva unidad
+            </button>
+          </div>
         </div>
-        <div class="tw">
-          <table>
-            <thead><tr><th>Código</th><th>Tipo</th><th class="r">Piso</th><th class="r">m²</th><th class="r">Precio USD</th><th>Estado</th></tr></thead>
-            <tbody>
-              ${unidades.length === 0
-                ? '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-muted)">Sin unidades registradas</td></tr>'
-                : unidades.map(u => `
-                  <tr>
-                    <td><strong>${u.codigo}</strong></td>
-                    <td>${tipoLabel[u.tipo]||u.tipo}</td>
-                    <td class="r">${u.piso}</td>
-                    <td class="r">${u.m2}</td>
-                    <td class="r">${fmt.usd(u.precioBase)}</td>
-                    <td><span style="font-size:11px;font-weight:500;color:${estadoColor[u.estado]||'var(--text-mid)'}">${u.estado}</span></td>
-                  </tr>
-                `).join('')
-              }
-            </tbody>
-          </table>
+        <div class="pb">
+          ${unidades.length === 0
+            ? '<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:12.5px">Sin unidades registradas. Agregue unidades con el botón +</div>'
+            : renderMapaUnidades(unidades, tipoLabel)
+          }
         </div>
       </div>
     `;
@@ -234,9 +226,98 @@ function renderDetalleProy(el, proyectos, selectedId) {
       };
       modal.classList.add('open');
     });
+
+    document.querySelectorAll('.unidad-cell').forEach(cell => {
+      cell.addEventListener('click', () => {
+        const uid = cell.dataset.uid;
+        const u = unidades.find(x => x.id === uid);
+        if (!u) return;
+        const modal = document.getElementById('globalModal');
+        const title = document.getElementById('modal-title');
+        const body  = document.getElementById('modal-body');
+        if (!modal || !body) return;
+        const mapColor = { DISPONIBLE:'#4a8a30', RESERVADO:'#d4a017', VENDIDO:'#c0392b', NO_DISPONIBLE:'#bbb' };
+        const estadoLbl = { DISPONIBLE:'Disponible', RESERVADO:'Reservado', VENDIDO:'Vendido', NO_DISPONIBLE:'No disponible' };
+        title.textContent = `Unidad ${u.codigo}`;
+        body.innerHTML = `
+          <div style="text-align:center;margin-bottom:16px">
+            <span style="display:inline-block;padding:6px 18px;border-radius:20px;font-size:13px;font-weight:600;color:white;background:${mapColor[u.estado]}">${estadoLbl[u.estado]||u.estado}</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+            <div style="background:var(--off);border-radius:10px;padding:12px"><div style="font-size:9.5px;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px">Tipo</div><div style="font-size:14px;font-weight:500;color:var(--bark)">${tipoLabel[u.tipo]||u.tipo}</div></div>
+            <div style="background:var(--off);border-radius:10px;padding:12px"><div style="font-size:9.5px;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px">Piso</div><div style="font-size:14px;font-weight:500;color:var(--bark)">${u.piso}</div></div>
+            <div style="background:var(--off);border-radius:10px;padding:12px"><div style="font-size:9.5px;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px">Superficie</div><div style="font-size:14px;font-weight:500;color:var(--bark)">${u.m2} m²</div></div>
+            <div style="background:var(--off);border-radius:10px;padding:12px"><div style="font-size:9.5px;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px">Precio</div><div style="font-size:14px;font-weight:500;color:var(--bark)">${fmt.usd(u.precioBase)}</div></div>
+          </div>
+          ${u.estado === 'DISPONIBLE' ? `<button id="btnReservarU" style="width:100%;background:#d4a017;color:white;border:none;border-radius:10px;padding:12px;font-size:13px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;">Reservar unidad</button>` : ''}
+          ${u.estado === 'RESERVADO' ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <button id="btnVenderU" style="background:#c0392b;color:white;border:none;border-radius:10px;padding:12px;font-size:13px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;">Marcar vendido</button>
+            <button id="btnLiberarU" style="background:#4a8a30;color:white;border:none;border-radius:10px;padding:12px;font-size:13px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;">Liberar</button>
+          </div>` : ''}
+        `;
+        const cambiarEstado = async (nuevoEstado) => {
+          try {
+            showLoading('Actualizando...');
+            await unidadesApi.cambiarEstado(u.id, nuevoEstado);
+            hideLoading(); toast('Estado actualizado', 'ok');
+            modal.classList.remove('open');
+            cargar();
+          } catch(err) { hideLoading(); toast('Error: '+err.message,'err'); }
+        };
+        if (document.getElementById('btnReservarU')) document.getElementById('btnReservarU').onclick = () => cambiarEstado('RESERVADO');
+        if (document.getElementById('btnVenderU')) document.getElementById('btnVenderU').onclick = () => cambiarEstado('VENDIDO');
+        if (document.getElementById('btnLiberarU')) document.getElementById('btnLiberarU').onclick = () => cambiarEstado('DISPONIBLE');
+        modal.classList.add('open');
+      });
+    });
   };
   sel.addEventListener('change', cargar);
   cargar();
+}
+
+function renderMapaUnidades(unidades, tipoLabel) {
+  const mapColor = { DISPONIBLE:'#4a8a30', RESERVADO:'#d4a017', VENDIDO:'#c0392b', NO_DISPONIBLE:'#bbb' };
+  const mapBg    = { DISPONIBLE:'#e8f5e1', RESERVADO:'#fef9e7', VENDIDO:'#fde8e8', NO_DISPONIBLE:'#f0f0f0' };
+  const tipoIcon = { DEPARTAMENTO:'🏢', PENTHOUSE:'🏠', LOCAL_COMERCIAL:'🏪', OFICINA:'🏛️', ESTACIONAMIENTO:'🅿️' };
+
+  const pisos = {};
+  unidades.forEach(u => {
+    if (!pisos[u.piso]) pisos[u.piso] = [];
+    pisos[u.piso].push(u);
+  });
+  const pisosOrdenados = Object.keys(pisos).map(Number).sort((a, b) => b - a);
+
+  return `
+    <div style="border:1px solid var(--border);border-radius:12px;overflow:hidden;background:#fafaf8">
+      ${pisosOrdenados.map(piso => `
+        <div style="display:flex;border-bottom:1px solid var(--border)">
+          <div style="min-width:60px;padding:12px;background:var(--off);display:flex;align-items:center;justify-content:center;border-right:1px solid var(--border)">
+            <span style="font-size:11px;font-weight:600;color:var(--bark)">Piso ${piso}</span>
+          </div>
+          <div style="flex:1;padding:10px;display:flex;flex-wrap:wrap;gap:8px">
+            ${pisos[piso].map(u => `
+              <div class="unidad-cell" data-uid="${u.id}" style="
+                min-width:100px;flex:1;max-width:160px;
+                background:${mapBg[u.estado]||'#f0f0f0'};
+                border:2px solid ${mapColor[u.estado]||'#bbb'};
+                border-radius:10px;padding:10px 12px;cursor:pointer;
+                transition:transform .15s,box-shadow .15s;
+                position:relative;
+              " onmouseover="this.style.transform='scale(1.04)';this.style.boxShadow='0 4px 12px rgba(0,0,0,.12)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+                  <span style="font-size:14px;font-weight:700;color:${mapColor[u.estado]}">${u.codigo}</span>
+                  <span style="font-size:16px">${tipoIcon[u.tipo]||'📦'}</span>
+                </div>
+                <div style="font-size:10px;color:var(--text-muted);margin-bottom:2px">${tipoLabel[u.tipo]||u.tipo}</div>
+                <div style="font-size:10.5px;color:var(--text-mid)">${u.m2} m² · ${fmt.usd(u.precioBase)}</div>
+                <div style="position:absolute;top:6px;right:8px;width:8px;height:8px;border-radius:50%;background:${mapColor[u.estado]}"></div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
 }
 
 function renderEtapasProy(el, proyectos) {
