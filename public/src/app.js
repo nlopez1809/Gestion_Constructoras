@@ -529,22 +529,87 @@ async function renderComprasTab(tab, el, deps) {
       hideLoading();
       el.innerHTML = `
         <div style="margin-top:20px">
+          <div style="display:flex;justify-content:flex-end;margin-bottom:14px">
+            <button class="btn-pri" id="btnNuevoProv" style="height:36px">
+              <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Nuevo proveedor
+            </button>
+          </div>
           <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:13px">
-            ${provs.map(p=>`
+            ${provs.length === 0 ? '<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--text-muted)">Sin proveedores registrados</div>' : provs.map(p=>`
               <div style="background:var(--white);border:1px solid var(--border);border-radius:13px;padding:16px">
                 <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
                   <div>
                     <div style="font-family:'Cormorant Garamond',serif;font-size:15px;font-weight:600;color:var(--bark)">${p.nombre}</div>
                     <div style="font-size:11px;color:var(--text-muted)">${p.categoria} · NIT: ${p.nit}</div>
                   </div>
-                  <div style="font-size:13px;font-weight:600;color:var(--gold)">${'★'.repeat(Math.round(p.rating))}${'☆'.repeat(5-Math.round(p.rating))}</div>
+                  <div style="font-size:13px;font-weight:600;color:var(--gold)">${'★'.repeat(Math.round(p.rating||3))}${'☆'.repeat(5-Math.round(p.rating||3))}</div>
                 </div>
                 <div style="font-size:11px;color:var(--text-muted)">${p._count?.ordenes||0} órdenes · ${p.telefono||'Sin teléfono'}</div>
+                ${p.email ? `<div style="font-size:11px;color:var(--text-muted)">${p.email}</div>` : ''}
               </div>
             `).join('')}
           </div>
         </div>
       `;
+
+      document.getElementById('btnNuevoProv').addEventListener('click', () => {
+        const modal = document.getElementById('globalModal');
+        const mtitle = document.getElementById('modal-title');
+        const mbody = document.getElementById('modal-body');
+        if (!modal || !mbody) return;
+
+        const is = 'width:100%;background:var(--off);border:1px solid var(--border);border-radius:8px;padding:9px 12px;font-size:13px;font-family:"DM Sans",sans-serif;color:var(--text);outline:none;';
+        const ls = 'font-size:10px;font-weight:500;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;display:block;';
+        const fg = 'margin-bottom:12px;';
+        const rw = 'display:grid;grid-template-columns:1fr 1fr;gap:12px;';
+        const bs = 'width:100%;background:var(--bark);color:white;border:none;border-radius:10px;padding:12px;font-size:13px;font-weight:500;cursor:pointer;font-family:"DM Sans",sans-serif;margin-top:8px;';
+
+        mtitle.textContent = 'Nuevo proveedor';
+        mbody.innerHTML = `<form id="frmProveedor">
+          <div style="${rw}">
+            <div style="${fg}"><label style="${ls}">Nombre / Razón social</label><input style="${is}" name="nombre" required></div>
+            <div style="${fg}"><label style="${ls}">NIT</label><input style="${is}" name="nit" required></div>
+          </div>
+          <div style="${fg}"><label style="${ls}">Categoría / Rubro</label><select style="${is}" name="categoria" required>
+            <option value="Materiales">Materiales de construcción</option>
+            <option value="Electricidad">Electricidad</option>
+            <option value="Plomería">Plomería</option>
+            <option value="Acabados">Acabados</option>
+            <option value="Ferretería">Ferretería</option>
+            <option value="Maquinaria">Maquinaria y equipos</option>
+            <option value="Transporte">Transporte</option>
+            <option value="Servicios">Servicios profesionales</option>
+            <option value="Otros">Otros</option>
+          </select></div>
+          <div style="${rw}">
+            <div style="${fg}"><label style="${ls}">Teléfono</label><input style="${is}" name="telefono" placeholder="+591 4..."></div>
+            <div style="${fg}"><label style="${ls}">Email</label><input style="${is}" name="email" type="email"></div>
+          </div>
+          <div style="${fg}"><label style="${ls}">Dirección</label><input style="${is}" name="direccion"></div>
+          <button type="submit" style="${bs}">Crear proveedor</button>
+        </form>`;
+
+        document.getElementById('frmProveedor').onsubmit = async (e) => {
+          e.preventDefault();
+          const fd = new FormData(e.target);
+          try {
+            deps.showLoading('Creando proveedor...');
+            await proveedoresApi.create({
+              nombre: fd.get('nombre'),
+              nit: fd.get('nit'),
+              categoria: fd.get('categoria'),
+              telefono: fd.get('telefono') || undefined,
+              email: fd.get('email') || undefined,
+              direccion: fd.get('direccion') || undefined
+            });
+            deps.hideLoading();
+            deps.toast('Proveedor creado', 'ok');
+            modal.classList.remove('open');
+            renderComprasTab('proveedores', el, deps);
+          } catch (err) { deps.hideLoading(); deps.toast('Error: ' + err.message, 'err'); }
+        };
+        modal.classList.add('open');
+      });
     } else if (tab === 'inventario') {
       const mats = await materialesApi.listaInv();
       hideLoading();
